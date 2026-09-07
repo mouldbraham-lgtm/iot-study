@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>IoT Security Roadmap — Study App</title>
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiSW9UIFNlY3VyaXR5IFJvYWRtYXAiLCJzaG9ydF9uYW1lIjoiSW9UU2VjIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJzdGFydF91cmwiOiIuIiwidGhlbWVfY29sb3IiOiIjZDk1YjJiIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmZmY4ZjAifQ==">
+<!-- Firebase (optional, enables cross-device progress sync — app works fine without it, local-only) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --bg: #fff8f0;
@@ -47,6 +50,12 @@
     font-size:11px;font-weight:700;color:var(--teal-dark);
     background:#e2f1ee;border-radius:20px;padding:5px 10px;
   }
+  .badge-row{display:flex;gap:6px;align-items:center;}
+  .sync-badge{
+    font-size:10.5px;font-weight:700;border-radius:20px;padding:5px 9px;
+  }
+  .sync-on{background:#dcefe4;color:var(--good);}
+  .sync-off{background:var(--sand);color:var(--ink-soft);}
   .back-btn{
     background:none;border:none;color:var(--coral-dark);font-weight:700;
     font-size:15px;padding:8px 4px;cursor:pointer;display:flex;align-items:center;gap:4px;
@@ -497,6 +506,52 @@ const WEEKS = [
 --------------------------------------------------------------- */
 const STORAGE_KEY = "iotSecRoadmapProgress_v1";
 
+/* ---- Cross-device sync setup (optional) ----
+   1. Go to https://console.firebase.google.com → create a free project.
+   2. Build → Firestore Database → Create database (any region, "production mode" is fine).
+   3. Project settings (gear icon) → General → "Your apps" → Add app → Web (</>) → copy the firebaseConfig object.
+   4. Paste it below, replacing the placeholder values.
+   5. Firestore → Rules tab → replace with the rules below, then Publish:
+
+        rules_version = '2';
+        service cloud.firestore {
+          match /databases/{database}/documents {
+            match /progressSync/{docId} {
+              allow read, write: if true;
+            }
+          }
+        }
+
+      (This only stores your study progress, nothing sensitive, so open rules are fine
+      for a personal single-user app. Anyone would need this exact file + your project's
+      config to read it, and it's not linked from anywhere public.)
+   6. Reload the app on both your phone and laptop — progress now syncs automatically,
+      in near real time, in the background.
+   If you skip this setup, the app just keeps working with local-only storage on each device.
+*/
+const firebaseConfig = {
+  apiKey: "AIzaSyDMbjFr_wj-bVq6K5-aSf-najdmiNP538g",
+  authDomain: "iot-roadmap.firebaseapp.com",
+  projectId: "iot-roadmap",
+  storageBucket: "iot-roadmap.firebasestorage.app",
+  messagingSenderId: "530362911696",
+  appId: "1:530362911696:web:2ac055270f5c4515da87d5"
+};
+const SYNC_DOC_ID = "melissa-iot-roadmap"; // any string; just keep it identical on every device
+
+let syncEnabled = false;
+let db = null;
+let applyingRemote = false; // guards against write-loops while applying an incoming snapshot
+let saveTimer = null;
+
+try{
+  if(firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY" && typeof firebase !== "undefined"){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    syncEnabled = true;
+  }
+}catch(e){ console.warn("Firebase init failed — falling back to local-only storage.", e); syncEnabled = false; }
+
 function loadProgress(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -504,8 +559,31 @@ function loadProgress(){
   }catch(e){}
   return {};
 }
+
 function saveProgress(){
   try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); }catch(e){}
+  if(!syncEnabled || applyingRemote) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(()=>{
+    db.collection("progressSync").doc(SYNC_DOC_ID).set({data: progress, updatedAt: Date.now()})
+      .catch(err=>console.warn("Sync write failed:", err));
+  }, 500);
+}
+
+function initSync(){
+  if(!syncEnabled) return;
+  db.collection("progressSync").doc(SYNC_DOC_ID).onSnapshot(doc=>{
+    if(doc.exists && doc.data() && doc.data().data){
+      applyingRemote = true;
+      progress = doc.data().data;
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(progress)); }catch(e){}
+      render();
+      applyingRemote = false;
+    } else {
+      db.collection("progressSync").doc(SYNC_DOC_ID).set({data: progress, updatedAt: Date.now()})
+        .catch(err=>console.warn("Initial sync push failed:", err));
+    }
+  }, err=>{ console.warn("Sync listener failed:", err); });
 }
 function weekKey(m,w){ return "m"+m+"w"+w; }
 function getWeekProgress(m,w){
@@ -559,7 +637,10 @@ function renderOverview(){
   let html = `
     <div class="topbar">
       <h1>🔐 IoT Security Study</h1>
-      <div class="badge">3-Month Roadmap</div>
+      <div class="badge-row">
+        <div class="badge">3-Month Roadmap</div>
+        <div class="sync-badge ${syncEnabled?'sync-on':'sync-off'}">${syncEnabled?'☁️ Synced':'📴 Local only'}</div>
+      </div>
     </div>
   `;
 
@@ -616,7 +697,10 @@ function renderWeek(){
   let html = `
     <div class="topbar">
       <button class="back-btn" id="backBtn">‹ All weeks</button>
-      <div class="badge">${meta.name} · Week ${wk.week}</div>
+      <div class="badge-row">
+        <div class="badge">${meta.name} · Week ${wk.week}</div>
+        <div class="sync-badge ${syncEnabled?'sync-on':'sync-off'}">${syncEnabled?'☁️':'📴'}</div>
+      </div>
     </div>
     <div class="week-header">
       <div class="eyebrow">${meta.name}, Week ${wk.week}</div>
@@ -805,6 +889,7 @@ function renderInterview(wk){
    INIT
 --------------------------------------------------------------- */
 render();
+initSync();
 </script>
 </body>
 </html>
