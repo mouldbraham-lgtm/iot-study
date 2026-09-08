@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>IoT Security Roadmap — Study App</title>
+<title>Compowder IoT Roadmap — Study App</title>
 <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiSW9UIFNlY3VyaXR5IFJvYWRtYXAiLCJzaG9ydF9uYW1lIjoiSW9UU2VjIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJzdGFydF91cmwiOiIuIiwidGhlbWVfY29sb3IiOiIjZDk1YjJiIiwiYmFja2dyb3VuZF9jb2xvciI6IiNmZmY4ZjAifQ==">
 <!-- Firebase (optional, enables cross-device progress sync — app works fine without it, local-only) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -189,6 +189,23 @@
   .iv-card.open .iv-answer{display:block;}
 
   .empty-hint{text-align:center;color:var(--ink-soft);font-size:13px;padding:20px 10px;}
+
+  /* Track select */
+  .track-card{
+    border-radius:20px;padding:22px 20px;margin-bottom:16px;box-shadow:var(--shadow);
+    cursor:pointer;color:#fff;position:relative;
+  }
+  .track-card:active{transform:scale(0.98);}
+  .track-core{background:linear-gradient(135deg, var(--coral), var(--amber));}
+  .track-project{background:linear-gradient(135deg, #8a4fc7, #c2599f);}
+  .track-card h2{margin:0 0 6px;font-size:19px;font-weight:800;}
+  .track-card p{margin:0 0 10px;font-size:13px;opacity:0.92;line-height:1.4;}
+  .track-card .track-meta{font-size:11.5px;font-weight:700;opacity:0.85;}
+  .track-arrow{position:absolute;right:20px;top:50%;transform:translateY(-50%);font-size:22px;opacity:0.7;}
+  .intro-note{
+    background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:18px;
+    font-size:12.5px;color:var(--ink-soft);line-height:1.5;box-shadow:0 1px 0 rgba(0,0,0,0.03);
+  }
 </style>
 </head>
 <body>
@@ -198,305 +215,388 @@
 /* ---------------------------------------------------------------
    DATA
 --------------------------------------------------------------- */
-const WEEKS = [
+const CORE_WEEKS = [
 {
   month:1, week:1,
-  title:"STM32 Refresh — Registers & Memory-Mapped I/O",
-  summary:"Bare-metal fundamentals: pointers, volatile, the Cortex-M memory map, and the interrupt vector table.",
+  title:"Embedded Systems & Microcontroller Basics",
+  summary:"What an MCU actually is, how it talks to the physical world, and the vocabulary every IoT job expects you to know cold.",
   flashcards:[
-    {q:"What does the `volatile` keyword tell the compiler, and why is it essential for memory-mapped I/O?", a:"It tells the compiler the value can change outside the normal flow of the program (e.g. hardware can change it), so the compiler must not cache it in a register or optimize the read/write away — it must re-read from memory every time."},
-    {q:"What is memory-mapped I/O (MMIO)?", a:"A design where peripheral registers (GPIO, UART, timers...) are mapped into the same address space as RAM, so you access hardware by reading/writing to specific memory addresses instead of using special I/O instructions."},
-    {q:"What is the Interrupt Vector Table (IVT) on a Cortex-M chip?", a:"An array of function pointers stored at the start of flash memory. Each entry is the address of the handler function for a specific interrupt/exception (reset, NMI, hard fault, peripheral IRQs, etc.). The core jumps to the matching address when that interrupt fires."},
-    {q:"Why is a pointer to a peripheral register typically declared as `volatile uint32_t *`?", a:"`uint32_t` matches the register width, the pointer gives you the exact memory address of the register, and `volatile` prevents the compiler from optimizing away reads/writes since the value can change from hardware, not just from your code."},
-    {q:"What's the difference between a pointer and the value it points to, in the context of `*(volatile uint32_t*)0x40020014 = 0x1;`?", a:"The number is a memory address (a register's location). Casting it to a pointer type and dereferencing it (`*`) lets you read/write directly to that address — here, writing 1 to set a bit in a GPIO register."},
-    {q:"What happens on Cortex-M when the CPU receives an interrupt while executing normal code?", a:"The CPU automatically stacks (pushes) key registers, looks up the handler's address in the vector table, and jumps to it. When the handler returns, the CPU automatically unstacks the registers and resumes where it left off."},
-    {q:"Why do you often need to enable a peripheral's clock (via RCC registers) before configuring it?", a:"On STM32, peripherals are clock-gated to save power — if the peripheral's clock isn't enabled in the RCC (Reset and Clock Control) registers, writes to its configuration registers may silently have no effect."},
-    {q:"What is bit-banding / bitwise register manipulation used for, conceptually?", a:"Setting, clearing, toggling, or reading individual bits in a register without disturbing the other bits — typically via `|=` (set), `&= ~` (clear), `^=` (toggle), and `&` (read/test) with a bitmask."}
+    {q:"What's the difference between a microcontroller (MCU) and a microprocessor (MPU)?", a:"An MCU integrates a CPU, RAM, flash, and peripherals (GPIO, timers, ADC...) on a single chip, aimed at dedicated embedded tasks. An MPU is just the CPU core, requiring external RAM/storage/peripherals — used when you need a full OS (like Linux) and more processing power, e.g. a Raspberry Pi vs an ESP32."},
+    {q:"What is GPIO, and what are the two basic modes a pin can be configured in?", a:"General Purpose Input/Output — pins whose behavior is software-configurable. Input mode reads an external voltage (e.g. a button state); output mode drives the pin high/low to control something (e.g. an LED)."},
+    {q:"What does an ADC (Analog-to-Digital Converter) do, and why does an MCU need one?", a:"It converts a continuous analog voltage (e.g. from a temperature sensor or potentiometer) into a discrete digital value the CPU can process — most real-world sensors produce analog signals, but digital logic can only work with discrete numbers."},
+    {q:"What is an interrupt, and why is it more efficient than constantly polling a pin in a loop?", a:"A hardware signal that pauses normal execution to run a specific handler function immediately when an event occurs (e.g. a button press). It's more efficient than polling because the CPU can do other work (or sleep) instead of repeatedly checking a pin that hasn't changed."},
+    {q:"What does 'memory-mapped I/O' mean?", a:"Peripheral registers (GPIO, UART, timers...) are addressed the same way as RAM — reading/writing a specific memory address reads/writes a hardware register, rather than needing special I/O instructions."},
+    {q:"Why does the `volatile` keyword matter in embedded C/C++?", a:"It tells the compiler a variable's value can change outside normal program flow (e.g. by hardware or an interrupt), so it must always re-read the actual memory location instead of assuming a cached value — critical for anything touching hardware registers or shared interrupt state."},
+    {q:"What is a datasheet, and why is reading one a core IoT engineering skill?", a:"The manufacturer's technical reference for a chip/component — pinouts, electrical characteristics, register maps, timing diagrams. Nearly every real embedded task (wiring a new sensor, debugging odd behavior, choosing a part) requires reading and correctly interpreting datasheets, not just following a tutorial."}
   ],
   quiz:[
-    {q:"Without `volatile`, what's the most likely bug when polling a hardware status register in a loop?", options:["The code won't compile","The compiler may cache the register value in a CPU register and the loop never sees updates, becoming infinite or stale","The register address will be wrong","Nothing — volatile is only cosmetic"], correct:1, explain:"The compiler assumes memory it wrote itself doesn't change unless it writes it again. Without `volatile`, it may hoist the read out of the loop entirely, so your code polls a stale cached value forever."},
-    {q:"What lives at the very beginning of the vector table on most Cortex-M chips?", options:["The reset handler address","The initial stack pointer value","A NOP instruction","The clock configuration"], correct:1, explain:"Entry 0 is the initial main stack pointer (MSP) value, entry 1 is the reset handler address — the CPU loads the SP from entry 0, then jumps to the address in entry 1."},
-    {q:"You write to a GPIO configuration register but nothing happens on the pin. What's a common root cause?", options:["The pin is defective","The GPIO port's clock was never enabled in RCC","Volatile isn't needed for GPIO","The board needs to be power-cycled"], correct:1, explain:"A very common bare-metal gotcha: the peripheral clock gate wasn't enabled, so the register writes are effectively ignored by the (unclocked) peripheral."},
-    {q:"Which operation clears bit 3 of a register without touching the other bits?", options:["reg |= (1 << 3)","reg &= ~(1 << 3)","reg ^= (1 << 3)","reg = (1 << 3)"], correct:1, explain:"AND-ing with the inverted mask clears only that bit; all other bits stay because they're AND-ed with 1."}
+    {q:"Why would you pick an MCU (like an ESP32) over an MPU (like a Raspberry Pi) for a battery-powered sensor node?", options:["MCUs are always faster","MCUs typically draw far less power and don't need a full OS/external RAM for a simple dedicated task", "MPUs can't run C++","MCUs have more RAM"], correct:1, explain:"Power efficiency and simplicity for a dedicated task are the classic reasons to choose an MCU over a full MPU/OS stack."},
+    {q:"Why is polling a pin in a tight loop generally worse than using an interrupt for a rare event like a button press?", options:["Polling doesn't work at all","It wastes CPU cycles that could go to other work or power-saving sleep, for an event that rarely happens","Interrupts are illegal in embedded C","Polling uses less code"], correct:1, explain:"Interrupts let the CPU do other useful work (or sleep, saving battery) instead of constantly checking a pin that usually hasn't changed."},
+    {q:"Without `volatile`, what's a realistic bug when reading a hardware status flag in a loop?", options:["The code won't compile","The compiler may cache the value in a register, so the loop never sees hardware-driven updates and can hang forever", "It will read random memory","volatile only affects float precision"], correct:1, explain:"This is one of the most common, hard-to-spot embedded bugs — invisible until you test on real hardware."}
   ],
   interview:[
-    {q:"Explain what `volatile` does and give a real bug you'd see without it.", a:"Talking points: compiler optimization assumptions, register caching, an infinite polling loop example, and why this is invisible in simulation but appears on real hardware."},
-    {q:"Walk me through what happens electrically and in software from power-on reset to your `main()` running.", a:"Talking points: reset vector fetch, stack pointer init, startup code (`.data`/`.bss` init), then call to `main()` — shows you understand the boot sequence, not just application code."},
-    {q:"What is a memory-mapped register, concretely, in terms of an address and a bit?", a:"Talking points: peripheral base address + offset = register address; each bit or bitfield controls a specific hardware function; give one real example (e.g. GPIO ODR bit sets a pin high)."},
-    {q:"Why would a security engineer specifically care about the interrupt vector table?", a:"Talking points: it's a common attack/fault-injection target (redirecting execution), it must be protected/write-protected in secure designs, and it matters for secure boot chain-of-trust reasoning."}
+    {q:"Explain the difference between a microcontroller and a microprocessor, with an example of when you'd choose each.", a:"Talking points: integration level, power/cost trade-offs, need for a full OS or not — use concrete examples (ESP32 vs Raspberry Pi)."},
+    {q:"Walk me through what an interrupt is and why it matters for embedded power efficiency.", a:"Talking points: contrast with polling, mention sleep modes benefiting from interrupt-driven wake-up rather than busy-waiting."},
+    {q:"How comfortable are you reading a component datasheet, and can you describe your process?", a:"Talking points: pinout/electrical specs first, then register map or communication protocol section, then timing diagrams if debugging — show this is a normal, expected workflow for you, not an intimidating one-off."}
   ]
 },
 {
   month:1, week:2,
-  title:"Peripherals — SPI, I2C & Debugging",
-  summary:"Serial peripheral protocols and using GDB to actually see what firmware is doing.",
+  title:"Wired Communication Protocols — UART, SPI, I2C",
+  summary:"The three protocols behind almost every sensor and module you'll wire up in any IoT job.",
   flashcards:[
-    {q:"How many wires does a basic SPI bus use, and what are they?", a:"Typically 4: SCK (clock), MOSI (master out slave in), MISO (master in slave out), and SS/CS (chip/slave select, one per device)."},
-    {q:"How many wires does I2C use, and what are they?", a:"2: SDA (data) and SCL (clock), both open-drain with pull-up resistors, shared by all devices on the bus."},
-    {q:"How does I2C address multiple devices on just 2 wires?", a:"Each device has a unique 7-bit (or 10-bit) address. The master sends the address first; only the device matching that address responds — devices don't need separate select lines."},
-    {q:"Why does SPI need a separate chip-select line per device, while I2C doesn't?", a:"SPI has no addressing scheme on the wire — the master selects which device is 'listening' physically via a dedicated CS line, whereas I2C uses in-band addressing so any number of devices can share the same two wires."},
-    {q:"Name one advantage of SPI over I2C, and one advantage of I2C over SPI.", a:"SPI: much faster (often 10+ MHz vs I2C's typical 100k-1MHz), full duplex. I2C: fewer pins needed for many devices (2 wires regardless of device count), built-in addressing and ACK/NACK."},
-    {q:"What's the difference between a breakpoint and a watchpoint in GDB?", a:"A breakpoint halts execution when the CPU reaches a specific line/address of code. A watchpoint halts execution when a specific memory location's value changes, regardless of which code touches it."},
-    {q:"Why is a watchpoint especially useful for debugging memory-mapped I/O or shared-state bugs?", a:"It lets you catch exactly when and where a variable or register is unexpectedly modified, which is hard to find by single-stepping when many code paths could be responsible."},
-    {q:"What does 'clock polarity and phase' (CPOL/CPHA) mean in SPI, in plain terms?", a:"They define when data is sampled relative to the clock edge (rising/falling) and what the clock's idle level is — master and slave must agree on the same mode (0-3) or communication fails."}
+    {q:"What is UART, and what are its defining characteristics?", a:"Universal Asynchronous Receiver/Transmitter — a simple 2-wire (TX/RX) serial protocol with no shared clock line; both sides must agree on a baud rate in advance. Common for simple point-to-point links (debug consoles, GPS modules, chip-to-chip bridges)."},
+    {q:"How many wires does SPI use, and what is each for?", a:"Typically 4: SCK (clock), MOSI (master-out-slave-in), MISO (master-in-slave-out), and CS/SS (chip select, one per device) — full-duplex and generally fast."},
+    {q:"How many wires does I2C use, and how does it address multiple devices?", a:"2 wires: SDA (data) and SCL (clock), both open-drain with pull-up resistors. Each device has a unique address; the master sends the target address first, and only that device responds — no separate select line needed."},
+    {q:"When would you choose I2C over SPI for a project with many sensors?", a:"When pin count is limited and speed requirements are modest — I2C lets you add many devices on just 2 shared wires, while SPI would need a dedicated CS line per device, quickly using up pins."},
+    {q:"When would you choose SPI over I2C?", a:"When you need higher throughput (e.g. a display, flash memory, or high-sample-rate sensor) — SPI is generally much faster and full-duplex, at the cost of more pins per device."},
+    {q:"What's a common real-world I2C problem when two sensors share the same fixed address?", a:"An address conflict — you can't distinguish them on the same bus without an I2C multiplexer/switch, an address-select pin strap on the part, or choosing a different sensor variant."},
+    {q:"What does 'baud rate' mean in UART, and why must both devices agree on it?", a:"The rate (bits per second) data is transmitted. Since UART has no shared clock line, both sides use their own local timing to sample bits — if the baud rates don't match, bytes are misread/garbled."}
   ],
   quiz:[
-    {q:"Two I2C devices on the same bus have the same fixed 7-bit address. What's the practical consequence?", options:["No problem, I2C handles duplicates automatically","They'll conflict — you can't address them individually without a mux, different address pins, or a different part", "SPI will resolve this automatically","I2C addresses are always unique by design"], correct:1, explain:"This is a classic real-world I2C headache — you need an address pin strap, an I2C mux/switch, or a different sensor variant to resolve address collisions."},
-    {q:"Which bus is generally the better choice when you need the highest throughput to a single sensor (e.g. a fast IMU)?", options:["I2C, because it's simpler","SPI, because it's typically much faster and full-duplex","Both are identical in speed","Neither, use UART"], correct:1, explain:"SPI's dedicated lines and lack of addressing/ACK overhead let it run much faster than typical I2C speeds."},
-    {q:"You set a watchpoint on a global variable and it triggers from an ISR you didn't expect. What does this tell you?", options:["GDB is malfunctioning","The variable is being modified from an interrupt context, a common source of race conditions", "Watchpoints don't work with interrupts","The variable is corrupted"], correct:1, explain:"This is exactly the kind of bug watchpoints are great at catching — shared state being touched from an ISR unexpectedly, a classic root cause of race conditions."},
-    {q:"In SPI, what is the role of the CS (chip select) line during a transaction?", options:["It supplies power to the slave","It must be asserted (active) by the master to tell one specific slave to listen/respond","It carries the clock signal","It's optional and rarely used"], correct:1, explain:"CS tells a specific slave 'this transaction is for you' — without it (or with multiple slaves' CS asserted at once), you'd get bus contention."}
+    {q:"You need to wire up 6 low-speed sensors but only have a few free GPIO pins. Which protocol is the better fit?", options:["SPI, because it's faster","I2C, because it needs only 2 shared wires regardless of device count","UART, because it's simplest","None of these can support multiple devices"], correct:1, explain:"I2C's addressing scheme is exactly what makes it pin-efficient for many low-speed devices on a shared bus."},
+    {q:"Two UART devices are connected but data comes through garbled. What's a likely cause?", options:["The wires are the wrong color","A baud rate mismatch between the two devices","I2C interference","The CS line isn't asserted"], correct:1, explain:"Since UART has no shared clock, mismatched baud rates are one of the most common causes of garbled serial data."},
+    {q:"Why does SPI typically outperform I2C for high-speed peripherals like displays or flash memory?", options:["SPI uses fewer wires","SPI has no addressing/ACK overhead and dedicated lines, enabling much higher clock speeds","I2C cannot be clocked faster than 1kHz","SPI is a wireless protocol"], correct:1, explain:"The simpler point-to-point wiring and lack of in-band addressing let SPI run substantially faster than typical I2C."}
   ],
   interview:[
-    {q:"Compare SPI and I2C and tell me which you'd choose for a given sensor and why.", a:"Talking points: pin count vs speed trade-off, addressing scheme, typical use cases (SPI for high-speed sensors/flash, I2C for many low-speed sensors on limited pins)."},
-    {q:"Describe a real bug you debugged using GDB — breakpoints, watchpoints, or stepping through an ISR.", a:"Talking points: frame this as a story (STAR format) — what was the symptom, what tool feature found it, what was the root cause and fix."},
-    {q:"How would you debug a race condition between an ISR and main-loop code?", a:"Talking points: watchpoints on shared variables, disabling interrupts to test for the symptom disappearing, understanding atomicity of reads/writes on your architecture."},
-    {q:"What could cause an SPI transaction to return garbage data?", a:"Talking points: CPOL/CPHA mismatch, wrong clock speed, CS timing issues, wiring/floating lines, or a slave not actually ready."}
+    {q:"Compare UART, SPI, and I2C, and tell me when you'd pick each.", a:"Talking points: wire count, speed, addressing scheme, and typical use cases for each — a very common embedded interview question."},
+    {q:"Describe a real or plausible wiring bug you'd expect with I2C and how you'd debug it.", a:"Talking points: address conflicts, missing pull-up resistors, or bus lockup, and using a logic analyzer or serial print statements to diagnose."},
+    {q:"What tool would you reach for to debug a suspected SPI timing issue, and why?", a:"Talking points: a logic analyzer or oscilloscope to directly observe clock/data lines and timing relationships, rather than guessing from firmware behavior alone."}
   ]
 },
 {
   month:1, week:3,
-  title:"FreeRTOS — Tasks, Queues & Synchronization",
-  summary:"Multitasking concepts: tasks, priorities, queues, mutexes, semaphores, and ISR-to-task handoff.",
+  title:"Wireless Protocols Landscape",
+  summary:"Wi-Fi, BLE, Zigbee, Thread/Matter, LoRaWAN, and cellular IoT — how to reason about range, power, and bandwidth trade-offs.",
   flashcards:[
-    {q:"What is a FreeRTOS task?", a:"An independent thread of execution with its own stack and context, scheduled by the RTOS kernel based on priority and state (running, ready, blocked, suspended)."},
-    {q:"What's the core difference between a mutex and a binary semaphore?", a:"A mutex protects a shared resource and has the concept of ownership (the task that locked it must unlock it) with priority inheritance to avoid priority inversion. A binary semaphore is a signaling mechanism between tasks/ISRs with no ownership concept — any task can 'give' or 'take' it."},
-    {q:"What is priority inversion, and how does a mutex with priority inheritance help?", a:"Priority inversion happens when a high-priority task is blocked waiting on a resource held by a low-priority task, while a medium-priority task preempts the low-priority one — effectively making the high-priority task wait indefinitely. Priority inheritance temporarily boosts the low-priority task's priority to that of the waiting high-priority task so it finishes and releases the resource faster."},
-    {q:"Why can't you safely call most FreeRTOS API functions directly inside an ISR?", a:"Regular API functions may block or aren't designed for interrupt context. FreeRTOS provides special 'FromISR' variants (e.g. `xQueueSendFromISR`) that are safe to call from interrupts and never block."},
-    {q:"What's a typical pattern for handing data from an ISR to a task?", a:"The ISR does minimal work and calls a `...FromISR` function (e.g. `xQueueSendFromISR` or `xSemaphoreGiveFromISR`) to pass data or signal a waiting task, then a `portYIELD_FROM_ISR()` triggers a context switch if a higher-priority task was unblocked."},
-    {q:"What is a FreeRTOS queue used for?", a:"Passing data (by copy) between tasks, or between an ISR and a task, in a thread-safe FIFO manner — the receiving task can block until data is available."},
-    {q:"What does 'blocking' vs 'polling' mean in an RTOS context?", a:"Polling repeatedly checks a condition in a loop, wasting CPU cycles. Blocking puts the task into a 'waiting' state (consuming no CPU) until the awaited event (queue data, semaphore, timeout) occurs, letting the scheduler run other tasks meanwhile."},
-    {q:"Why might polling still be justified in an embedded system despite blocking being 'better'?", a:"For very short, time-critical waits where the overhead of a context switch is higher than the wait itself, or in the ISR itself where you can't block at all."}
+    {q:"What's the fundamental trade-off across most IoT wireless protocols?", a:"Range, power consumption, bandwidth, and cost generally trade off against each other — higher bandwidth/longer range typically costs more power and/or money; low-power protocols usually sacrifice range or throughput."},
+    {q:"When is Wi-Fi the right choice for an IoT device, and when is it not?", a:"Good when you need high bandwidth and already have home/office Wi-Fi infrastructure (e.g. video streaming, frequent large payloads). Poor for battery-constrained devices needing months/years of battery life, since Wi-Fi radios draw relatively high power."},
+    {q:"What is BLE best suited for, and what's its key limitation?", a:"Low-power, short-range, small/infrequent data exchanges (wearables, beacons, sensor readings) — its main limitation is short range (tens of meters) and lower throughput compared to Wi-Fi."},
+    {q:"What problem do Zigbee and Z-Wave solve that Wi-Fi/BLE don't as well?", a:"Mesh networking for whole-home device coverage — many low-power nodes relay messages for each other, extending effective range and reliability across a house without needing every device to reach a central Wi-Fi router directly."},
+    {q:"What is Matter (and its underlying Thread protocol), and why does it matter for the smart home industry?", a:"An emerging cross-vendor standard aiming to make smart home devices interoperable regardless of brand (so a Matter-certified lamp works with any Matter-compatible hub/app) — increasingly relevant knowledge for anyone entering consumer IoT roles."},
+    {q:"What is LoRaWAN designed for, and what's the trade-off?", a:"Long-range (kilometers), very low-power communication for small, infrequent payloads (e.g. agricultural sensors, utility meters) — the trade-off is very low bandwidth and higher latency, unsuitable for anything data-heavy or real-time."},
+    {q:"What's the role of cellular IoT protocols like NB-IoT and LTE-M?", a:"They provide wide-area cellular connectivity optimized for low-power, low-bandwidth IoT devices (unlike full LTE/5G data plans), useful when a device is out of Wi-Fi/LoRaWAN gateway range but still needs occasional connectivity, e.g. remote asset tracking."}
   ],
   quiz:[
-    {q:"A high-priority task appears to stall while a low-priority task holds a resource, and a medium-priority task keeps running. What's this called?", options:["Deadlock","Priority inversion","Starvation by design","Stack overflow"], correct:1, explain:"This is the textbook definition of priority inversion — the medium task is effectively blocking the high-priority task indirectly."},
-    {q:"Which is the correct tool to protect a shared resource (like a sensor data buffer) accessed by two tasks?", options:["A queue","A mutex","A software timer","A binary semaphore"], correct:1, explain:"Mutexes are specifically designed for mutual exclusion on shared resources and include priority inheritance; semaphores are better suited for signaling events, not resource protection."},
-    {q:"An ISR needs to wake up a task waiting for sensor data. What's the correct approach?", options:["Call the normal blocking queue-send function","Call the ISR-safe variant (e.g. xQueueSendFromISR) and yield if needed","Directly call the task's function from the ISR","Busy-wait inside the ISR until the task processes it"], correct:1, explain:"Only the 'FromISR' API variants are safe in interrupt context; they never block and typically request a context switch via a yield flag."},
-    {q:"What's the main problem with a task that polls a flag in a tight `while` loop instead of blocking on a semaphore?", options:["It's more readable","It wastes CPU time that could go to other tasks, and may starve lower-priority tasks", "It's actually faster and preferred","Polling doesn't work in FreeRTOS"], correct:1, explain:"Polling burns CPU cycles the scheduler could give to other ready tasks — blocking lets the CPU do useful work (or sleep) while waiting."}
+    {q:"A battery-powered soil moisture sensor needs to report data twice a day from a farm field kilometers from any building. Which protocol family fits best?", options:["Wi-Fi","BLE","LoRaWAN or NB-IoT/cellular IoT","Zigbee"], correct:2, explain:"Long range and very low power for infrequent small payloads is exactly LoRaWAN/cellular-IoT's design target — Wi-Fi/BLE/Zigbee all have far shorter range."},
+    {q:"Why might a smart home lamp use Zigbee instead of direct Wi-Fi?", options:["Zigbee is faster than Wi-Fi","Zigbee's mesh networking and low power draw suit many always-on, low-bandwidth home devices better than Wi-Fi's higher power draw","Wi-Fi can't control lamps","Zigbee has longer range than cellular"], correct:1, explain:"Mesh coverage and low power consumption are Zigbee's core value proposition for smart home device networks."},
+    {q:"What is Matter primarily trying to solve in the smart home industry?", options:["Faster internet speeds","Cross-vendor interoperability, so devices from different brands work together seamlessly","Longer battery life for all devices","Replacing Wi-Fi entirely"], correct:1, explain:"Matter's whole purpose is standardizing interoperability across the fragmented smart-home device ecosystem."}
   ],
   interview:[
-    {q:"Explain the difference between a task and an interrupt.", a:"Talking points: interrupts preempt everything and run ASAP with minimal work; tasks are scheduled by priority and can block/yield; ISRs should be short and hand off real work to a task."},
-    {q:"Explain mutex vs semaphore, out loud, with a concrete example of each.", a:"Talking points: mutex = protecting a shared sensor buffer between two tasks; semaphore = ISR signaling a task that new data arrived. Mention ownership and priority inheritance as the key differentiator."},
-    {q:"Describe priority inversion and how you'd diagnose it in a real system.", a:"Talking points: symptom (high-priority task missing deadlines), root cause investigation (task priorities, resource holding), and the fix (mutex with priority inheritance, or redesigning resource sharing)."},
-    {q:"Walk me through how you restructured a polling design into an ISR→queue→task pipeline.", a:"Talking points: reference your Week 2→3 project checkpoint — before/after architecture, why it's more efficient and scalable."},
-    {q:"What happens if you call a blocking FreeRTOS function from inside an ISR?", a:"Talking points: undefined/incorrect behavior, potential crash or corruption — explain why ISR-safe API variants exist and when you'd use `portYIELD_FROM_ISR`."}
+    {q:"How would you choose a wireless protocol for a new IoT product, given its constraints?", a:"Talking points: walk through range, power budget, bandwidth needs, existing infrastructure, and cost — show a structured decision process, not a memorized answer."},
+    {q:"What's the difference between Wi-Fi and BLE that makes each suited to different products?", a:"Talking points: power consumption vs bandwidth/range trade-off, typical use cases for each."},
+    {q:"What do you know about Matter/Thread, and why might it matter to a company hiring for a smart home role?", a:"Talking points: interoperability standard, growing industry adoption — shows current industry awareness beyond just technical protocol knowledge."}
   ]
 },
 {
   month:1, week:4,
-  title:"STM32↔ESP32 Bridge & MQTT",
-  summary:"UART bridging between MCU and network co-processor, and the MQTT publish/subscribe model.",
+  title:"RTOS & Firmware Architecture",
+  summary:"Why real IoT firmware often isn't bare-metal, and the core RTOS concepts every embedded job expects.",
   flashcards:[
-    {q:"In this project's architecture, why does the ESP32 act as a 'network co-processor' rather than doing the sensor/crypto work itself?", a:"It mirrors a real industry pattern (a secure MCU/element handling sensitive logic + a separate connectivity chip). It also lets the STM32 (bare-metal, more controllable/secure) own the sensitive work while reusing existing ESP32 Wi-Fi/MQTT/OTA experience for connectivity."},
-    {q:"What is MQTT, at a high level?", a:"A lightweight publish/subscribe messaging protocol over TCP, designed for constrained devices and unreliable networks — clients publish messages to 'topics', and other clients subscribe to topics to receive them, all routed through a broker."},
-    {q:"What is the role of the MQTT broker?", a:"It's the central server that receives all published messages and routes them to every client subscribed to the matching topic — publishers and subscribers never talk to each other directly."},
-    {q:"Why is UART a sensible choice for STM32↔ESP32 communication on a dev board?", a:"It's simple (2 wires), doesn't require complex protocol stacks, is well supported by both chips' peripherals, and is fast enough for periodic sensor payloads."},
-    {q:"In the pub/sub model, what decouples publishers from subscribers?", a:"The topic and the broker — a publisher doesn't need to know who (if anyone) is subscribed, and a subscriber doesn't need to know who published; they only need to agree on the topic name."},
-    {q:"What is QoS (Quality of Service) in MQTT, conceptually?", a:"A setting (0, 1, or 2) defining delivery guarantees: 0 = at most once (fire and forget), 1 = at least once (may duplicate), 2 = exactly once (highest overhead) — chosen based on how critical it is that a message arrives and arrives only once."},
-    {q:"Why might you design the UART protocol between STM32 and ESP32 to include a simple framing scheme (e.g. start byte, length, checksum)?", a:"UART has no built-in message boundaries — framing lets the receiver reliably detect where a message starts/ends and verify it wasn't corrupted, rather than assuming byte-perfect delivery."}
+    {q:"What is an RTOS, and why would you use one instead of bare-metal (a single superloop)?", a:"A Real-Time Operating System provides task scheduling, inter-task communication, and timing guarantees — useful once a device needs to juggle multiple concurrent responsibilities (networking, sensor reading, UI, timers) reliably, rather than manually interleaving everything in one big loop."},
+    {q:"What is a 'task' in RTOS terms?", a:"An independent thread of execution with its own stack, scheduled by the RTOS based on priority and readiness — conceptually similar to a lightweight thread in desktop OS terms."},
+    {q:"What's the difference between a mutex and a semaphore?", a:"A mutex protects a shared resource and has ownership (the task that locks it must unlock it), with priority inheritance to prevent priority inversion. A semaphore is a signaling mechanism (e.g. an ISR waking a task) without ownership semantics."},
+    {q:"What is priority inversion?", a:"A scenario where a high-priority task is blocked waiting on a resource held by a low-priority task, while a medium-priority task keeps preempting the low-priority one — effectively stalling the high-priority task indefinitely. Priority-inheritance mutexes are the standard fix."},
+    {q:"Name two popular embedded RTOS options and how they differ in scope.", a:"FreeRTOS: lightweight, widely used, minimal built-in features beyond scheduling/sync primitives (you add networking/etc. yourself). Zephyr: a more full-featured RTOS with built-in networking stacks, device driver models, and broader hardware support, closer to a small embedded OS."},
+    {q:"Why can't you safely call most RTOS API functions directly from an interrupt handler?", a:"Regular API calls may block, which isn't allowed in interrupt context. Most RTOSes provide '...FromISR' variants specifically designed to be interrupt-safe and non-blocking."}
   ],
   quiz:[
-    {q:"Why doesn't the MQTT publisher need to know which clients are subscribed to a topic?", options:["It always broadcasts to everyone regardless of topics","The broker handles routing based on topic subscriptions, decoupling publishers from subscribers","MQTT doesn't support subscriptions","Subscribers must poll the publisher directly"], correct:1, explain:"This decoupling is the whole point of the pub/sub pattern — it's what makes MQTT scalable for many IoT devices."},
-    {q:"In this project's design, what is the ESP32 explicitly NOT supposed to have access to (once encryption is added in Month 2)?", options:["The Wi-Fi credentials","The plaintext sensor data or the encryption keys","The MQTT broker address","The UART baud rate"], correct:1, explain:"The design goal is that the ESP32 only forwards ciphertext — it never sees plaintext or keys, which is a deliberate security boundary worth highlighting in interviews."},
-    {q:"Why add a simple framing/checksum scheme over raw UART bytes?", options:["UART requires it to physically function","To let the receiver detect message boundaries and corrupted data reliably","It makes the code shorter","Framing is only needed for I2C"], correct:1, explain:"UART is just a byte stream with no built-in structure — framing and checksums are how you build reliability on top of it."},
-    {q:"Which MQTT QoS level guarantees a message is delivered exactly once (at the cost of overhead)?", options:["QoS 0","QoS 1","QoS 2","There is no such guarantee in MQTT"], correct:2, explain:"QoS 2 uses a 4-way handshake to guarantee exactly-once delivery, at the cost of more round trips than QoS 0 or 1."}
+    {q:"Why might a simple bare-metal superloop become unmanageable as an IoT device gains more responsibilities?", options:["Bare-metal code can't compile with more features","Manually interleaving timing-sensitive tasks (networking, sensors, UI) in one loop becomes fragile and hard to reason about as complexity grows","Bare-metal doesn't support C++","GPIO stops working without an RTOS"], correct:1, explain:"This is exactly why RTOSes exist — structured task scheduling scales far better than hand-rolled interleaving once you have several concurrent responsibilities."},
+    {q:"A high-priority task seems to stall while a low-priority task holds a needed resource. What's this called, and what's the standard fix?", options:["Deadlock; fixed by rebooting","Priority inversion; fixed with a priority-inheritance mutex","Race condition; fixed by disabling interrupts permanently","Stack overflow; fixed by increasing RAM"], correct:1, explain:"Textbook priority inversion — priority inheritance is the standard RTOS mechanism to resolve it."},
+    {q:"Why do RTOSes provide separate 'FromISR' API variants?", options:["They're identical to regular functions, just renamed","Regular functions may block, which is unsafe/undefined in interrupt context; ISR variants are designed to be safe and non-blocking","FromISR functions run faster in all cases","ISR variants only exist for networking functions"], correct:1, explain:"This distinction is fundamental to RTOS programming and a very common interview/code-review topic."}
   ],
   interview:[
-    {q:"Walk me through your end-to-end pipeline: sensor → STM32 → UART → ESP32 → MQTT → Python.", a:"Talking points: describe each hop, why each design choice was made, and what would break if one link failed (e.g. UART framing, Wi-Fi drop, broker unavailable)."},
-    {q:"Why split responsibilities between STM32 and ESP32 instead of using one chip for everything?", a:"Talking points: separation of concerns, security boundary (sensitive logic isolated from the network-facing chip), reuse of prior ESP32 experience, and this being a realistic industry pattern (MCU + connectivity chip / secure element)."},
-    {q:"What would you do if the UART link between the two chips were untrusted (e.g. an attacker with board access)?", a:"Talking points: this foreshadows Month 2 — payload-level encryption on the STM32 side means even a compromised or sniffed UART/ESP32 doesn't expose plaintext."},
-    {q:"Explain publish/subscribe vs a direct client-server model, and why MQTT chose pub/sub for IoT.", a:"Talking points: decoupling, one-to-many fan-out, broker as a single point handling many constrained clients, favoring low overhead over TCP."}
+    {q:"When would you choose an RTOS over bare-metal firmware, and when would bare-metal still be the right call?", a:"Talking points: complexity/number of concurrent responsibilities as the deciding factor; bare-metal remains reasonable for very simple, single-purpose devices."},
+    {q:"Explain mutex vs semaphore with a concrete example of each.", a:"Talking points: mutex protecting a shared sensor data buffer between tasks; semaphore signaling a task from an ISR when new data arrives."},
+    {q:"What is priority inversion and how would you diagnose it in a real system?", a:"Talking points: symptom (a high-priority task missing deadlines), root-cause investigation of task priorities and resource holding, and the priority-inheritance fix."}
   ]
 },
 {
   month:2, week:5,
-  title:"mbedTLS on STM32 — ChaCha20-Poly1305",
-  summary:"Getting a crypto library running on constrained hardware, and applying your thesis cipher.",
+  title:"IoT Application-Layer Protocols",
+  summary:"MQTT, CoAP, HTTP/REST, and WebSockets — how devices actually talk to servers and each other over the network.",
   flashcards:[
-    {q:"Why is 'footprint/config tuning' a real, non-trivial skill when porting mbedTLS to an MCU?", a:"Full-featured mbedTLS is far too large (flash/RAM) for many MCUs. You must selectively enable only the modules/algorithms you actually need via config macros, which requires understanding dependencies between mbedTLS modules and the trade-offs of removing features."},
-    {q:"What are the two things ChaCha20-Poly1305 provides together, and why does that matter?", a:"Confidentiality (ChaCha20 stream cipher encrypts the data) and integrity/authenticity (Poly1305 MAC detects tampering) — together they form an AEAD (Authenticated Encryption with Associated Data) construction, so an attacker can't read the data or silently modify it."},
-    {q:"What is a nonce in the context of ChaCha20-Poly1305, and why must it never repeat with the same key?", a:"A nonce is a unique value used once per encryption operation with a given key. Reusing a nonce with the same key breaks ChaCha20's keystream uniqueness, allowing an attacker to recover plaintext via XOR of two ciphertexts and potentially forge the MAC — a critical, catastrophic failure."},
-    {q:"What is 'associated data' (the AD in AEAD) used for?", a:"Data that is authenticated (integrity-protected) but not encrypted — e.g. a message header or sequence number. It ensures that data can't be tampered with even though it's sent in the clear."},
-    {q:"Why is ChaCha20 often preferred over AES on microcontrollers without hardware AES acceleration?", a:"ChaCha20 is designed for fast, constant-time performance in pure software using only additions, rotations, and XORs — no lookup tables (which also avoids cache-timing side channels) — whereas software AES is slower and can be vulnerable to timing attacks without hardware support."},
-    {q:"What does 'constant-time' mean in a crypto implementation, and why does it matter?", a:"An implementation whose execution time doesn't depend on secret data (key/plaintext values) — this matters because timing differences can leak secret information to an attacker measuring execution time (a side-channel attack)."},
-    {q:"What is a key generation / key management concern you must handle even before encrypting your first payload?", a:"Where the key comes from (securely generated, provisioned, or derived), where it's stored (ideally not in plain flash), and how it's protected from extraction — key management is often harder than the crypto algorithm itself."}
+    {q:"What is MQTT, and why is it so common in IoT?", a:"A lightweight publish/subscribe protocol over TCP, designed for constrained devices and unreliable networks. Its low overhead, small message sizes, and decoupled pub/sub model (via a broker) make it a near-default choice for many-device IoT telemetry and control."},
+    {q:"What is CoAP, and how does it differ from MQTT?", a:"Constrained Application Protocol — a lightweight protocol modeled after HTTP's request/response style but designed for constrained devices, typically running over UDP rather than TCP. Unlike MQTT's broker-based pub/sub, CoAP is more like a lightweight REST call directly between devices."},
+    {q:"What does 'QoS' mean in MQTT, and what are the three levels?", a:"Quality of Service — delivery guarantees. QoS 0: at most once (fire-and-forget, may be lost). QoS 1: at least once (guaranteed, may duplicate). QoS 2: exactly once (guaranteed, no duplicates, highest overhead)."},
+    {q:"Why is HTTP/REST sometimes a poor fit for constrained IoT devices, despite being extremely common on the web?", a:"HTTP has relatively high per-request overhead (headers, connection setup) compared to MQTT/CoAP, and its request/response model doesn't naturally support a server pushing unsolicited updates to a device the way pub/sub does — though it's still fine for less constrained devices or gateway-to-cloud communication."},
+    {q:"What is a WebSocket, and when might an IoT system use one?", a:"A persistent, full-duplex connection over a single TCP handshake, allowing real-time bidirectional data flow — useful for something like a live dashboard needing continuous updates from a gateway/cloud service, though less common directly on constrained end devices."},
+    {q:"What does the pub/sub model (as used by MQTT) decouple, that request/response doesn't?", a:"Publishers and subscribers never need to know about each other directly — they only need to agree on a topic name, with a broker handling all routing. This makes it easy to add new subscribers (e.g. a new dashboard) without changing anything on the publishing device."}
   ],
   quiz:[
-    {q:"Why can't you just enable 'all of mbedTLS' by default on a small STM32?", options:["mbedTLS doesn't support STM32","Flash/RAM constraints require selectively configuring only needed modules","It's a licensing issue","mbedTLS requires an OS"], correct:1, explain:"Full mbedTLS is large; embedded config tuning (selecting only needed algorithms/modules) is essential and a real, demonstrable skill."},
-    {q:"What happens if you accidentally reuse the same nonce with the same key in ChaCha20-Poly1305?", options:["Nothing, nonces are optional","A minor performance hit","A critical security failure — plaintext and/or the MAC can potentially be recovered/forged","The library will silently generate a new one"], correct:2, explain:"Nonce reuse is one of the most catastrophic mistakes possible in stream-cipher-based AEAD — it must be prevented by design (counter, random-per-message, etc.)."},
-    {q:"What does Poly1305 add on top of what ChaCha20 alone provides?", options:["Faster encryption","Integrity/authenticity (tamper detection) via a MAC","Key exchange","Compression"], correct:1, explain:"ChaCha20 alone only gives confidentiality; Poly1305 adds the authentication tag so tampering is detectable — together they're AEAD."},
-    {q:"Why might ChaCha20 be a better fit than software AES on a small MCU without a crypto accelerator?", options:["ChaCha20 is legally required for IoT","ChaCha20 is fast in pure software and avoids lookup-table timing side channels, unlike naive software AES","AES cannot run on any microcontroller","ChaCha20 uses less memory for keys"], correct:1, explain:"This is exactly why ChaCha20 was designed the way it was — fast and constant-time without hardware support, unlike table-based AES implementations."}
+    {q:"Why is MQTT generally preferred over plain HTTP polling for a fleet of thousands of battery-powered sensors?", options:["MQTT has no data limits","MQTT's lower overhead and pub/sub push model avoid the cost of repeated HTTP connection setup and constant polling","HTTP cannot run on embedded devices","MQTT doesn't require TCP"], correct:1, explain:"Lower per-message overhead and push-based delivery (vs. constant client polling) is exactly why MQTT dominates large-scale IoT telemetry."},
+    {q:"Which MQTT QoS level guarantees exactly-once delivery, at the cost of more overhead?", options:["QoS 0","QoS 1","QoS 2","MQTT has no delivery guarantees"], correct:2, explain:"QoS 2 uses a 4-step handshake specifically to guarantee exactly-once delivery."},
+    {q:"What's a key architectural difference between CoAP and MQTT?", options:["CoAP requires a broker, MQTT doesn't","CoAP is closer to lightweight request/response (like REST) typically over UDP, while MQTT is broker-based pub/sub over TCP","They are functionally identical","MQTT can't be used with sensors"], correct:1, explain:"This distinction — REST-like vs. pub/sub — is the core conceptual difference worth understanding for protocol selection."}
   ],
   interview:[
-    {q:"Explain your thesis work: what does ChaCha20-Poly1305 do and why did you implement it in hardware/Verilog?", a:"Talking points: describe the algorithm at a level beyond 'I implemented it' — stream cipher + MAC = AEAD, why AEAD matters, and what a Verilog/RTL implementation adds (throughput, low power, deterministic timing) versus software."},
-    {q:"Why AEAD (confidentiality + integrity together) instead of encryption alone?", a:"Talking points: encryption-only leaves data forgeable/tamperable even if unreadable; give a concrete example (an attacker flipping bits in ciphertext without a MAC to detect it)."},
-    {q:"AES vs ChaCha20-Poly1305 — what are the real trade-offs?", a:"Talking points: hardware-accelerated AES (AES-NI, MCU crypto engines) is often faster with acceleration; ChaCha20 wins in pure software / no-acceleration contexts and has simpler constant-time properties; both are considered secure at the algorithm level today."},
-    {q:"What's the danger of nonce reuse, and how would you engineer your firmware to prevent it?", a:"Talking points: explain the cryptographic failure mode, then a concrete mitigation (monotonic counter stored/incremented safely, avoiding resets that could replay a counter, etc.)."},
-    {q:"Why is embedded crypto library configuration/tuning a real skill worth mentioning in an interview?", a:"Talking points: shows you understand resource-constrained trade-offs, not just 'calling a crypto function' — a common differentiator between application-level and embedded security engineers."}
+    {q:"Explain the difference between MQTT and CoAP, and when you'd choose each.", a:"Talking points: pub/sub vs request/response model, TCP vs UDP, typical use cases for each."},
+    {q:"Why would you choose MQTT over plain REST/HTTP for a large IoT device fleet?", a:"Talking points: overhead per message, push vs. polling, broker-based decoupling enabling easy addition of new consumers."},
+    {q:"What MQTT QoS level would you choose for a critical command (e.g. 'unlock door') vs. a routine sensor reading, and why?", a:"Talking points: QoS 2 or 1 for a critical, must-not-be-lost/duplicated command; QoS 0 often acceptable for frequent, loss-tolerant telemetry."}
   ]
 },
 {
   month:2, week:6,
-  title:"Encrypting the Payload",
-  summary:"STM32 encrypts before sending; ESP32 forwards ciphertext blind; verifying it's really encrypted.",
+  title:"IoT System Architecture & Cloud Platforms",
+  summary:"Edge vs cloud, gateways, device shadows, and the big cloud IoT platforms you'll likely encounter on the job.",
   flashcards:[
-    {q:"Why is it a meaningful security property that 'the ESP32 never sees plaintext or keys'?", a:"It limits the impact of an ESP32 compromise (a common attack surface since it's Wi-Fi-connected and runs more complex/less trusted code) — even if attacked, the sensitive data and keys are never exposed there, because encryption/decryption only happens on the STM32/Python endpoints."},
-    {q:"What's the practical difference between 'claiming' data is encrypted and 'proving' it with Wireshark?", a:"Wireshark lets you capture the actual bytes on the wire and visually/statistically confirm they look like random ciphertext (no readable patterns, high entropy) rather than just trusting that your code called an encrypt function correctly."},
-    {q:"What should captured ciphertext look like in a packet capture if encryption is working correctly?", a:"High-entropy, effectively random-looking bytes with no discernible patterns or repeated structures — no readable ASCII, no obvious correlation between similar plaintext inputs."},
-    {q:"Why encrypt at the payload/application layer at all, if you're also going to add TLS later (Week 7)?", a:"Payload-level encryption protects the data end-to-end between the actual sender and receiver (STM32↔Python), independent of any intermediate hop — TLS alone would only protect data in transit and could still expose plaintext to anything terminating the TLS connection (like a broker or an intermediate device)."},
-    {q:"What's a risk if the encryption key is hardcoded identically into every device in a product line?", a:"A single key compromise (extracted from one device) compromises every device using that key — proper key management usually requires per-device unique keys or secure provisioning, not a shared hardcoded secret."}
+    {q:"What's the difference between 'edge' and 'cloud' processing in an IoT architecture?", a:"Edge processing happens locally (on the device or a nearby gateway), reducing latency and bandwidth use and enabling offline operation. Cloud processing happens on remote servers, offering more compute power and centralized data/analytics, at the cost of network dependency and latency."},
+    {q:"What is an IoT gateway, and why is one often needed?", a:"A device that bridges constrained/local-protocol devices (Zigbee, BLE, LoRaWAN) to the internet/cloud, since many low-power end devices can't directly speak internet protocols or reach the cloud themselves."},
+    {q:"What is a 'device shadow' (or 'digital twin'), as used by platforms like AWS IoT?", a:"A cloud-side virtual representation of a device's last-known state, letting applications read/query state or queue desired-state changes even when the physical device is temporarily offline — the device syncs up when it reconnects."},
+    {q:"Name three major cloud IoT platforms and one thing each is known for.", a:"AWS IoT Core (device shadows, deep AWS ecosystem integration), Azure IoT Hub (strong device management/twin features, Microsoft ecosystem integration), Google Cloud IoT (historically strong data analytics/BigQuery integration — note Google deprecated its original Cloud IoT Core service, so check current offerings)."},
+    {q:"Why might a smart factory choose edge processing for a safety-critical sensor, rather than sending everything to the cloud?", a:"Latency and reliability — a safety shutoff can't wait on a round-trip to the cloud or risk losing connectivity at a critical moment; local edge logic can react immediately regardless of internet status."},
+    {q:"What's device provisioning, at a high level?", a:"The process of securely registering a new device with a cloud platform/fleet — assigning it an identity, credentials, and initial configuration, ideally at manufacturing time or first boot, so it can securely connect and be managed going forward."}
   ],
   quiz:[
-    {q:"You capture the ESP32→broker traffic in Wireshark. What confirms encryption is actually working, not just present in code?", options:["The packet size is small","The payload bytes appear random/high-entropy with no visible structure or plaintext", "The MQTT topic name is hidden","The IP addresses are encrypted"], correct:1, explain:"Visually/statistically confirming ciphertext looks random (vs. spotting your sensor data in plaintext) is the concrete proof interviewers like to hear you demonstrate, not just describe."},
-    {q:"Why does keeping keys off the ESP32 meaningfully reduce risk in this architecture?", options:["It doesn't, ESP32 is equally trusted","It limits the blast radius if the Wi-Fi-connected chip (larger attack surface) is compromised","ESP32 can't store data","It only matters for performance"], correct:1, explain:"Security architecture is partly about limiting what a compromise of any one component exposes — this is a textbook example of that principle applied to a two-chip design."},
-    {q:"If you rely only on TLS (Week 7) and skip payload encryption, what's a gap that remains?", options:["No gap, TLS is sufficient always","Anything that terminates the TLS connection (e.g. the broker) could see plaintext","TLS is weaker than payload encryption in every case","MQTT doesn't support TLS"], correct:1, explain:"TLS protects data in transit to whatever terminates the connection — if that's a broker you don't fully trust or that could be compromised, plaintext is exposed there without payload-level (end-to-end) encryption."}
+    {q:"Why would a factory floor control system favor edge processing over sending every sensor reading to the cloud first?", options:["Cloud processing is always more accurate","Local decisions avoid network latency/dependency for time- and safety-critical responses","Edge devices are always cheaper","Cloud platforms can't process sensor data"], correct:1, explain:"Latency and offline-resilience for safety-critical control loops is the classic edge-computing justification."},
+    {q:"What problem does a 'device shadow' solve?", options:["It backs up firmware images","It lets applications query/set a device's state even while the device is temporarily offline, syncing when it reconnects","It encrypts device data","It replaces the need for a network connection entirely"], correct:1, explain:"Device shadows/digital twins decouple application logic from a device's real-time connectivity status."},
+    {q:"Why is an IoT gateway often necessary in a mixed-protocol deployment (e.g. Zigbee sensors + cloud dashboard)?", options:["Gateways are only for security","Many constrained end devices can't speak internet protocols directly and need a bridge to reach the cloud","Zigbee devices can connect to the cloud without help","Gateways replace the need for sensors"], correct:1, explain:"Bridging a local, low-power protocol to internet connectivity is the core function of an IoT gateway."}
   ],
   interview:[
-    {q:"How did you verify your data was actually encrypted, not just that your code called an encrypt function?", a:"Talking points: Wireshark capture, before/after comparison, describing what random ciphertext looks like vs. structured plaintext."},
-    {q:"Why keep the ESP32 blind to plaintext and keys — what does this defend against specifically?", a:"Talking points: reduced attack surface, compromise containment, real-world parallel to secure element / MCU separation designs used in industry."},
-    {q:"Explain the difference between payload-level (end-to-end) encryption and transport-level (TLS) encryption.", a:"Talking points: what each protects, where each terminates, and why using both gives defense in depth rather than being redundant."},
-    {q:"What key management weaknesses would you flag in a v1 prototype like this, and how would you fix them for production?", a:"Talking points: hardcoded/shared keys, no secure key storage, no rotation — mention concepts like per-device provisioning, secure elements, or key derivation as the 'next step' answer."}
+    {q:"How would you decide what processing happens at the edge vs. in the cloud for a given IoT system?", a:"Talking points: latency requirements, offline-resilience needs, bandwidth/cost, and compute intensity — a structured trade-off discussion, not a fixed rule."},
+    {q:"What's a device shadow/digital twin, and why is it useful?", a:"Talking points: decoupling application/state queries from real-time device connectivity, syncing on reconnect."},
+    {q:"Have you used or studied any cloud IoT platform (AWS IoT Core, Azure IoT Hub, etc.)? Walk me through what you know.", a:"Talking points: even conceptual familiarity with device provisioning, shadows/twins, and telemetry ingestion pipelines is valuable to mention here."}
   ]
 },
 {
   month:2, week:7,
-  title:"TLS for the Transport Layer",
-  summary:"MQTT over TLS, certificates, and why dual-layer encryption (payload + transport) matters.",
+  title:"Device Management, Telemetry & OTA Updates",
+  summary:"Keeping a fleet of deployed devices alive, monitored, and updatable — a huge part of real IoT jobs beyond initial development.",
   flashcards:[
-    {q:"What does TLS add on top of a plain TCP connection, at a high level?", a:"Encryption of all data in transit, integrity protection, and authentication of at least the server (and optionally the client) via certificates — preventing eavesdropping and tampering on the network path."},
-    {q:"What is the basic purpose of a certificate in TLS?", a:"It cryptographically binds an identity (e.g. a server's hostname) to a public key, signed by a trusted Certificate Authority (CA), so a client can verify it's really talking to the server it intended to."},
-    {q:"What's the difference between server authentication and mutual (client+server) authentication in TLS?", a:"Server authentication: only the client verifies the server's certificate (the common web case). Mutual TLS (mTLS): the server also requires and verifies a client certificate, so both sides prove their identity — common in IoT/M2M for stronger device authentication."},
-    {q:"Why might mutual TLS be especially relevant for an IoT device connecting to an MQTT broker?", a:"It ensures the broker only accepts connections from devices holding a valid, provisioned client certificate — preventing rogue or spoofed devices from connecting, not just protecting the data in transit."},
-    {q:"What are the two layers of protection in this project by the end of Week 7?", a:"1) Payload-level AEAD encryption (ChaCha20-Poly1305) applied on the STM32 before the data ever leaves the device. 2) Transport-level TLS encryption protecting the ESP32↔broker connection."},
-    {q:"Why isn't 'just use TLS' always a sufficient answer for IoT security?", a:"TLS protects the pipe, not the endpoints — if the broker or any intermediate service is compromised, or if you need protection against a component (like the ESP32) itself, TLS alone doesn't cover those scenarios; hence defense-in-depth with payload encryption too."}
+    {q:"What is 'telemetry' in an IoT context?", a:"Data a device periodically reports about itself or its environment (sensor readings, health/status metrics) sent back to a server/cloud for monitoring, analytics, or triggering actions."},
+    {q:"Why is fleet/device management a distinct discipline from just 'writing firmware'?", a:"Once you have more than a handful of deployed devices, you need to track which firmware version each is running, monitor health/connectivity, manage credentials, and roll out updates — problems that don't exist with a single prototype on your desk."},
+    {q:"What is OTA (Over-The-Air) updating, at a high level?", a:"The ability to remotely update a device's firmware over its network connection, without physical access — essential for fixing bugs or adding features to devices already deployed in the field, sometimes at massive scale."},
+    {q:"What's a key risk of OTA updates, and a common mitigation?", a:"A failed or interrupted update can 'brick' a device (leave it unbootable). A common mitigation is an A/B (dual-partition) update scheme: the new firmware is written to an inactive partition and only switched to as the active one after being verified to boot successfully, with automatic fallback to the previous known-good partition otherwise."},
+    {q:"Why might you version firmware and track it centrally across your fleet?", a:"To know exactly what code is running where — critical for debugging field issues, staged rollouts (testing an update on a small percentage of devices first), and compliance/audit purposes."},
+    {q:"What's a 'staged' or 'canary' rollout, and why use one for OTA updates?", a:"Rolling out an update to a small subset of devices first, monitoring for problems, before pushing to the entire fleet — limits the blast radius if the new firmware has an unexpected bug."}
   ],
   quiz:[
-    {q:"Why would you want both payload-level AEAD and transport-level TLS instead of picking just one?", options:["Redundancy is wasteful, one is always enough","They protect different things — payload encryption is end-to-end regardless of intermediaries, TLS protects the network path but trusts whatever terminates it","TLS alone can't encrypt MQTT","AEAD replaces the need for TLS entirely"], correct:1, explain:"This is a classic defense-in-depth interview answer — each layer covers a different threat model, and together they're stronger than either alone."},
-    {q:"In mutual TLS (mTLS), what does the server require from the client that it doesn't in standard TLS?", options:["A password","A valid client certificate proving the client's identity","A larger TCP window","Nothing extra"], correct:1, explain:"mTLS adds client-side certificate authentication on top of the standard server authentication, useful for verifying device identity in IoT/M2M scenarios."},
-    {q:"What does a CA-signed certificate actually prove to a connecting client?", options:["That the server has fast hardware","That a trusted third party has verified the binding between an identity and a public key","That the data will be compressed","That the server is using the latest TLS version"], correct:1, explain:"The CA's signature is what lets a client trust the identity claim in the certificate without having verified it directly itself."}
+    {q:"Why is fleet management a meaningfully different problem from developing firmware for a single prototype device?", options:["It isn't different at all","At scale you must track versions, health, and rollouts across many devices you can't physically access","Fleet management only applies to cloud servers, not IoT devices","Firmware development stops mattering once deployed"], correct:1, explain:"This operational dimension — managing many already-deployed devices — is a major, distinct part of real IoT engineering work."},
+    {q:"What does an A/B (dual-partition) OTA scheme protect against?", options:["Network latency","A failed/interrupted update permanently bricking the device, by keeping a verified-good fallback partition","Running out of storage space","Battery drain during normal operation"], correct:1, explain:"This is the standard defense against the single biggest OTA risk — an unrecoverable failed update in the field."},
+    {q:"Why would a company do a canary/staged rollout instead of pushing a new firmware version to 100% of devices at once?", options:["It's slower for no benefit","It limits how many devices are affected if the new firmware has an undiscovered bug","Staged rollouts are required by law","It reduces the total number of devices that need updating"], correct:1, explain:"Limiting blast radius for an unexpected regression is the entire point of staged/canary deployment strategies."}
   ],
   interview:[
-    {q:"Explain why you'd want both payload-level AEAD and transport-level TLS, not just one.", a:"Talking points: different threat models covered (end-to-end vs. network path), defense in depth, and a concrete scenario where one layer alone would fail but both together succeed."},
-    {q:"What is mutual TLS and when would you use it for an IoT device?", a:"Talking points: device identity/authentication at the broker, preventing rogue devices, provisioning challenges (cert distribution) as the trade-off."},
-    {q:"Walk me through what a certificate actually proves and doesn't prove.", a:"Talking points: it proves identity binding to a public key via a trusted CA signature; it does NOT prove the server/device is secure, uncompromised, or behaving correctly."},
-    {q:"If you had to drop one security layer due to a hardware/performance budget, which would you keep and why?", a:"Talking points: there's no single right answer — show engineering judgment by reasoning about the specific threat model, e.g. keeping payload encryption if the broker itself is the bigger risk, or TLS if network eavesdropping is the primary concern."}
+    {q:"What would you need to think about differently once a device you built goes from '1 prototype on your desk' to '10,000 units in the field'?", a:"Talking points: fleet visibility/monitoring, OTA update mechanisms and their failure modes, version tracking, and remote diagnostics — shows awareness beyond the development phase alone."},
+    {q:"How would you design an OTA update mechanism to minimize the risk of bricking devices?", a:"Talking points: A/B partitioning with fallback, staged/canary rollout, and pre-update verification checks."},
+    {q:"What telemetry would you want a deployed device to report, and why?", a:"Talking points: give concrete examples relevant to a plausible device (battery level, connectivity status, error counts, firmware version) and explain what decisions each metric would inform."}
   ]
 },
 {
   month:2, week:8,
-  title:"Threat Model & Write-Up",
-  summary:"What does this pipeline actually protect against, and what's still exposed?",
+  title:"Power Management & Sensor Interfacing",
+  summary:"Battery life math, sleep modes, and the practical side of choosing and wiring sensors.",
   flashcards:[
-    {q:"What is a threat model, in plain terms?", a:"A structured analysis of: what assets you're protecting, who might attack them and why, what attack paths exist, and which of those are mitigated vs. still exposed by your current design."},
-    {q:"Name three assets worth protecting in this IoT pipeline.", a:"Examples: the sensor data itself (confidentiality), the encryption keys, the firmware image/integrity, device identity/authenticity, and availability of the sensing function."},
-    {q:"Give an example of an attack this pipeline (as of Week 7) does NOT yet protect against.", a:"Physical attacks on the STM32 itself (e.g. reading keys via debug port/JTAG if not locked down), firmware tampering before secure boot is added (Month 3), or a fully compromised endpoint (STM32 or Python app) since encryption doesn't protect against a broken endpoint."},
-    {q:"Why is 'what would a real product need beyond this' an important question to answer honestly?", a:"It demonstrates engineering maturity — showing you understand the difference between a portfolio prototype and a production-grade secure system, which interviewers specifically look for over blind confidence."},
-    {q:"What's the difference between confidentiality, integrity, and availability (the CIA triad) as applied to this project?", a:"Confidentiality: sensor data can't be read by eavesdroppers (ChaCha20-Poly1305/TLS). Integrity: data/firmware can't be tampered with undetected (Poly1305 MAC, and secure boot signatures in Month 3). Availability: the system keeps functioning (not yet a focus of this project — e.g. no DoS protection)."}
+    {q:"What are the typical MCU power states worth knowing, from highest to lowest power draw?", a:"Active (fully running, executing code) → Modem/Light sleep (CPU paused or slowed, some peripherals still active, fast wake) → Deep sleep (most of the chip powered down, only specific wake sources like a timer or external pin active, slower wake, state may be lost) → Hibernation/shutdown (minimal power, essentially a soft power-off)."},
+    {q:"Why does the choice between light sleep and deep sleep matter for a battery-powered device?", a:"Deep sleep saves far more power but usually loses RAM contents (requiring re-initialization on wake) and has slower wake-up latency; light sleep preserves more state and wakes faster but draws more power — the right choice depends on how often the device needs to wake and how much state must persist."},
+    {q:"How would you roughly estimate a battery-powered device's expected battery life?", a:"Estimate average current draw across its duty cycle (mostly sleeping, briefly active) weighted by time in each state, then divide the battery's capacity (mAh) by that average current (mA) to estimate hours of runtime — real designs also account for battery self-discharge and voltage regulator efficiency."},
+    {q:"What's the practical difference between an analog and a digital sensor output, from a wiring/interfacing perspective?", a:"An analog sensor outputs a continuous voltage requiring an ADC to read; a digital sensor already outputs discrete values, often over a standard bus (I2C/SPI/UART) with a defined communication protocol you must implement/follow per its datasheet."},
+    {q:"Why might you add a hardware debounce (or software debounce delay) when reading a mechanical button/switch?", a:"Mechanical contacts physically 'bounce' for a few milliseconds when pressed/released, producing multiple rapid transitions that a fast digital read would misinterpret as several separate presses — debouncing filters this out."},
+    {q:"Why is choosing the right sensor for a job about more than just 'does it measure the right thing'?", a:"You also need to consider power draw, interface compatibility (I2C vs SPI vs analog), accuracy/resolution needs, physical size, and cost — a technically 'more accurate' sensor is often the wrong choice if it draws too much power or needs an interface your MCU doesn't support well."}
   ],
   quiz:[
-    {q:"As of the end of Month 2 (before secure boot), what's a realistic remaining gap in this pipeline?", options:["Data is not encrypted at all","Firmware integrity isn't verified yet — a tampered firmware image could still run", "MQTT doesn't work","The ESP32 can decrypt payloads"], correct:1, explain:"This is exactly why Month 3 exists — encryption alone doesn't stop someone from flashing malicious firmware onto the device; that's a firmware integrity problem, addressed by secure boot."},
-    {q:"Which part of the CIA triad does a MAC (like Poly1305) primarily provide?", options:["Confidentiality","Integrity","Availability","None of the above"], correct:1, explain:"A MAC detects tampering (integrity); confidentiality comes from the encryption (ChaCha20) part of the AEAD construction."},
-    {q:"Why is 'we protect against everything' a red flag answer in a security interview?", options:["It's actually the ideal answer","No real system protects against every threat; showing awareness of remaining gaps demonstrates maturity and honesty","Interviewers prefer overconfidence","It shows deep technical knowledge"], correct:1, explain:"Interviewers specifically probe for this — a candidate who can articulate what's NOT covered shows more real understanding than one who claims total coverage."}
+    {q:"A device wakes briefly every 10 minutes to take a reading, then sleeps for the rest of the time. Which sleep mode is likely most appropriate?", options:["Always stay in active mode for reliability","Deep sleep, since the wake interval is long and most state can be reinitialized cheaply on wake","Never sleep, since sleep modes are unreliable","Light sleep only, deep sleep should never be used"], correct:1, explain:"Long, infrequent wake intervals are exactly where deep sleep's power savings outweigh its slower wake latency and state loss."},
+    {q:"Why would you need a debounce delay when reading a physical push-button?", options:["Buttons are inherently analog devices","Mechanical contact bounce causes multiple rapid transitions that could be misread as several presses","Debouncing is only needed for I2C devices","It's purely a software style preference with no functional reason"], correct:1, explain:"Contact bounce is a real physical phenomenon in mechanical switches — debouncing (hardware or software) is standard practice."},
+    {q:"Why might you reject a highly accurate sensor for a battery-powered wearable design?", options:["Accuracy never matters in a design decision","If its power draw or interface requirements don't fit your power/pin budget, a less accurate but appropriate sensor may be the better engineering choice","More accurate sensors are always more power efficient","Sensor choice has no effect on wearable design"], correct:1, explain:"Real sensor selection is a multi-factor trade-off, not a single-metric optimization — a key practical engineering judgment."}
   ],
   interview:[
-    {q:"Present your threat model: what assets, what attackers, what's mitigated, what's still exposed.", a:"Talking points: structure this clearly — assets (data, keys, firmware, identity), plausible attackers (network eavesdropper, physical access, rogue device), and an honest gap list."},
-    {q:"What would you add if this had a real budget and needed to ship as a product?", a:"Talking points: secure element for key storage, hardware root of trust, per-device provisioning, monitoring/logging, DoS resilience, and possibly independent security review/pentest."},
-    {q:"Explain confidentiality, integrity, and availability, and map each to a specific defense in your project.", a:"Talking points: give concrete component-to-property mapping rather than a textbook definition — shows applied understanding, not memorization."},
-    {q:"What's a threat this project explicitly does NOT try to solve, and why was that an acceptable scope decision?", a:"Talking points: e.g. side-channel/physical attacks, full DoS resilience — explain scope trade-offs as a deliberate, reasoned engineering decision, not an oversight."}
+    {q:"How would you estimate the battery life of a device you're designing?", a:"Talking points: duty cycle across power states, average current calculation, dividing battery capacity by average draw — walk through a rough example."},
+    {q:"When would you choose deep sleep over light sleep, and what's the trade-off?", a:"Talking points: wake frequency, state persistence needs, and wake-up latency tolerance."},
+    {q:"Walk me through your process for selecting a sensor for a new project requirement.", a:"Talking points: multi-factor evaluation (accuracy, interface, power, cost, footprint) rather than picking the first sensor that measures the right physical quantity."}
   ]
 },
 {
   month:3, week:9,
-  title:"Secure Boot — Root of Trust & Signatures",
-  summary:"How a device verifies its own firmware is legitimate before running it.",
+  title:"IoT Security Fundamentals",
+  summary:"The conceptual security literacy every IoT engineer needs — threats, authentication, and encryption basics, without requiring deep crypto specialization.",
   flashcards:[
-    {q:"What is a 'root of trust' in secure boot?", a:"The foundational, immutable piece of the system (often stored in immutable/write-protected memory) that is implicitly trusted without further verification — everything else in the boot chain is verified against it, directly or transitively."},
-    {q:"What is a chain of trust?", a:"A sequence where each stage of boot verifies the signature of the next stage before executing it, starting from the root of trust — so trust in the immutable first stage extends step-by-step to the final application firmware."},
-    {q:"At a high level, how does signature verification work in secure boot?", a:"The firmware image is signed offline with a private key (kept secret by the manufacturer). The device stores/trusts the corresponding public key and, before executing new firmware, recomputes a hash of the image and verifies the signature against that public key — only a genuinely signed image passes."},
-    {q:"Why must the public key (or its hash) used for verification be stored somewhere immutable/protected on the device?", a:"If an attacker could overwrite the trusted public key, they could simply substitute their own key pair and sign malicious firmware that would then 'verify' successfully — breaking the entire chain of trust."},
-    {q:"What is PKI (Public Key Infrastructure) providing, conceptually, in this context?", a:"A system of key pairs, certificates, and (often) certificate authorities that manages trust relationships — who is allowed to sign what, and how a verifier confirms a signature was made by an authorized signer."},
-    {q:"Why is a hash function used before signing, rather than signing the entire firmware image directly?", a:"Signing algorithms (like RSA or ECDSA) operate on small fixed-size inputs; hashing the (potentially large) firmware image to a fixed-size digest first makes signing/verification efficient while the hash's collision resistance ensures any change to the firmware changes the hash (and thus fails verification)."}
+    {q:"Why is IoT security often considered especially challenging compared to traditional IT security?", a:"IoT devices are frequently resource-constrained (limited compute/memory for strong crypto), deployed in physically accessible/unattended locations, produced in huge numbers making patching hard, and often have long deployment lifetimes exceeding typical software support windows."},
+    {q:"What was the Mirai botnet, and what vulnerability did it exploit?", a:"A large-scale IoT botnet (2016) that compromised hundreds of thousands of IoT devices (cameras, routers) by scanning for and logging into them using default/hardcoded factory credentials that were never changed — a now-famous cautionary example of the risk of shipping devices with weak default credentials."},
+    {q:"What are the three properties in the 'CIA triad' of security, and give a one-line meaning for each?", a:"Confidentiality: data can't be read by unauthorized parties. Integrity: data can't be tampered with undetected. Availability: the system keeps functioning for legitimate users/uses."},
+    {q:"At a conceptual level, what does 'encryption' provide, and what does it NOT provide by itself?", a:"Encryption alone provides confidentiality (data can't be read without the key) but does not by itself guarantee integrity — an attacker could still tamper with ciphertext bits without needing to read the plaintext, unless a separate integrity mechanism (like a MAC, or an AEAD construction) is also used."},
+    {q:"What's the basic idea behind secure device provisioning?", a:"Giving each device a unique cryptographic identity (e.g. a certificate or key) at manufacturing/setup time, rather than a shared default password or key across an entire product line — so compromising one device doesn't compromise the whole fleet."},
+    {q:"Why is 'defense in depth' a useful security principle for IoT systems specifically?", a:"Given IoT devices' resource constraints and physical exposure, no single defense is likely bulletproof — layering multiple, independent protections (secure credentials, encrypted transport, input validation, network segmentation) means one layer failing doesn't automatically compromise the whole system."},
+    {q:"What's a practical, low-effort security practice every IoT engineer should follow regardless of role?", a:"Never ship or commit hardcoded default credentials, and force/encourage credential changes at first setup — directly addressing the exact failure mode that enabled Mirai-scale botnets."}
   ],
   quiz:[
-    {q:"Why must the root of trust be immutable (e.g. burned into ROM or write-protected)?", options:["For performance reasons only","Because if it could be modified, an attacker could replace it and break the entire chain of trust","It's a legal/regulatory requirement only","It doesn't need to be immutable"], correct:1, explain:"The whole security model depends on there being something an attacker categorically cannot alter — that's the actual definition of a root of trust."},
-    {q:"What happens in secure boot if the firmware's computed hash doesn't match what the signature attests to?", options:["The firmware runs anyway with a warning","Boot is halted / the firmware is rejected before execution","The device automatically re-downloads firmware","The hash mismatch is ignored for backward compatibility"], correct:1, explain:"Rejecting execution on verification failure is the entire point — an attacker's tampered image must never be allowed to run."},
-    {q:"Why hash the firmware before signing rather than signing the raw image directly?", options:["Hashing makes the firmware smaller","Signing algorithms work on small fixed-size inputs, and hashing efficiently 'fingerprints' any change to the image","Hashing encrypts the firmware","It's not necessary, this is a common misconception"], correct:1, explain:"This combination (hash + sign) is standard practice — it's efficient and any single-bit change to firmware changes the hash, which then fails signature verification."}
+    {q:"What made the Mirai botnet possible at such large scale?", options:["A zero-day exploit in TLS","Widespread use of unchanged default/hardcoded credentials across many IoT devices","A physical hardware flaw in all routers","A vulnerability in the electrical grid"], correct:1, explain:"Mirai is the textbook example cited across the industry for why default-credential hygiene matters at IoT scale."},
+    {q:"Does encrypting a message automatically protect it from tampering?", options:["Yes, encryption always includes tamper detection","No — encryption alone provides confidentiality; a separate integrity mechanism (MAC or AEAD) is needed to detect tampering","Only if using AES specifically","Only for wireless protocols"], correct:1, explain:"This distinction — confidentiality vs. integrity — is one of the most commonly tested security fundamentals in interviews."},
+    {q:"Why is secure per-device provisioning (unique credentials per device) better than a single shared factory credential?", options:["It's not actually better, shared credentials are simpler and fine","Compromising one device's credentials doesn't compromise the entire fleet","Shared credentials are illegal","Per-device credentials use less memory"], correct:1, explain:"Blast-radius containment is the core reasoning behind per-device identity provisioning."}
   ],
   interview:[
-    {q:"Explain how secure boot works, from power-on to running verified application code.", a:"Talking points: root of trust in immutable memory, bootloader stage(s), signature verification of each subsequent stage, chain of trust, and what happens on verification failure."},
-    {q:"What's the difference between a root of trust and a chain of trust?", a:"Talking points: root of trust = the one immutable trust anchor; chain of trust = the sequence of verifications extending that trust to every subsequent stage."},
-    {q:"Why can't you just check a firmware checksum instead of a cryptographic signature?", a:"Talking points: a plain checksum (like CRC) only detects accidental corruption, not deliberate tampering — an attacker can trivially recompute a checksum for their malicious image; a signature requires the attacker to possess the private key, which they don't."},
-    {q:"What's a practical attack against a secure boot implementation that has a bug, and how would you defend against it?", a:"Talking points: e.g. fault injection to skip the verification check, or a public key that's mutable — connects forward to Week 11's 'attack your own device' exercise."}
+    {q:"What makes IoT security uniquely challenging compared to typical enterprise IT security?", a:"Talking points: resource constraints limiting crypto choices, physical accessibility, massive scale making patching hard, and long device lifetimes."},
+    {q:"Explain the difference between confidentiality and integrity, with a concrete example of a failure of each.", a:"Talking points: reading someone's private sensor data (confidentiality failure) vs. an attacker silently altering a sensor reading in transit (integrity failure) — encryption alone addresses only the first."},
+    {q:"What's one thing you'd insist on for any IoT product you worked on, security-wise, even under time pressure?", a:"Talking points: no hardcoded/shared default credentials — a low-effort, high-impact baseline practice, tying back to real incidents like Mirai."}
   ]
 },
 {
   month:3, week:10,
-  title:"Secure OTA — Signed Updates & Anti-Rollback",
-  summary:"Turning OTA experience into a security portfolio piece: signed images, version checks.",
+  title:"Testing & Debugging Embedded Systems",
+  summary:"The practical toolkit and mindset for finding and fixing bugs in real hardware — a skill that separates working engineers from tutorial-followers.",
   flashcards:[
-    {q:"Why is 'signed firmware image' not enough on its own — why also need an anti-rollback / version check?", a:"Without a version check, an attacker could replay an old, legitimately-signed firmware image that has a known vulnerability (already patched in a newer version) — the signature alone doesn't prevent installing valid-but-outdated firmware."},
-    {q:"How does an anti-rollback mechanism typically work?", a:"The device stores a monotonically increasing version counter (often in one-time-programmable or protected non-volatile memory). Before accepting a new OTA image, the device checks the image's version is greater than (or equal to, depending on policy) the stored counter, and rejects downgrades."},
-    {q:"What three OTA update outcomes should you be able to demonstrate to prove your implementation works?", a:"1) A validly signed, current-version firmware image is accepted. 2) A tampered firmware image (signature won't verify) is rejected. 3) A validly signed but old/rolled-back version is rejected by the anti-rollback check."},
-    {q:"Why is storing the anti-rollback counter in ordinary, rewritable flash risky?", a:"An attacker with write access to that flash region could simply reset the counter back down, defeating the anti-rollback protection entirely — hence needing protected or monotonic-only storage (e.g. OTP fuses or a dedicated secure counter)."},
-    {q:"What turns 'I did OTA once' into a security portfolio piece, specifically?", a:"Adding signature verification and anti-rollback on top of basic OTA — demonstrating you understand OTA not just as a connectivity/update feature, but as a security-critical trust boundary that must resist malicious or replayed firmware."}
+    {q:"What is JTAG/SWD, and what's it used for?", a:"Standard hardware debug interfaces (JTAG is older/more general, SWD — Serial Wire Debug — is common on ARM Cortex-M chips) that let a debug probe connect to the chip to set breakpoints, single-step code, and inspect memory/registers directly on real hardware, not just in simulation."},
+    {q:"What's the difference between a breakpoint and a watchpoint when debugging?", a:"A breakpoint halts execution at a specific line/address of code. A watchpoint halts execution when a specific memory location's value changes, regardless of which code path touched it — useful for tracking down unexpected/unintended writes to shared state."},
+    {q:"What's a logic analyzer used for, and how does it differ from an oscilloscope?", a:"A logic analyzer captures and decodes multiple digital signal lines simultaneously (e.g. an entire I2C/SPI/UART bus) over time, showing you the actual bit-level communication. An oscilloscope shows analog voltage waveforms in fine detail (useful for signal integrity, noise, timing edges) but typically handles fewer channels."},
+    {q:"Why is 'it works on my desk but fails in the field' such a common embedded bug category, and what's a general strategy for it?", a:"Field conditions differ in power stability, temperature, RF interference, timing edge cases, and physical vibration/connector wear that a desk setup doesn't reproduce. Strategy: add defensive logging/telemetry from the start, and try to reproduce field conditions (power brownouts, distance/interference) during testing where possible."},
+    {q:"What's a race condition, in plain terms, and why are they notoriously hard to debug?", a:"Unsynchronized concurrent access to shared data/state producing inconsistent or wrong behavior depending on timing — hard to debug because they're often intermittent, may not reproduce under a debugger (which changes timing), and require careful reasoning about concurrency rather than just reading code linearly."},
+    {q:"Why is unit testing pure logic (data parsing, state machines) separately from hardware-dependent code a valuable embedded testing practice?", a:"It lets you run fast, repeatable automated tests on a PC (no hardware needed) for the parts of your code that don't actually touch registers/peripherals, catching logic bugs early without needing to flash real hardware for every change."}
   ],
   quiz:[
-    {q:"An attacker has a legitimate, correctly-signed but older firmware image with a known vulnerability. What stops them from installing it?", options:["Signature verification alone","Anti-rollback / version checking","Nothing, this is unavoidable","TLS on the OTA download connection"], correct:1, explain:"This is precisely the gap that anti-rollback closes — a valid signature only proves authenticity, not that the version is acceptable/current."},
-    {q:"Why is storing the rollback counter in normal writable flash a weak design?", options:["Flash is too slow","An attacker with flash write access could simply reset the counter, defeating the protection","Flash doesn't support counters","It's actually the recommended approach"], correct:1, explain:"The counter itself needs tamper resistance (e.g. one-time-programmable storage) or the whole anti-rollback mechanism can be trivially bypassed."},
-    {q:"What are the three demonstrable outcomes a good secure OTA test suite should show?", options:["Fast, medium, and slow update speeds","Valid firmware accepted, tampered firmware rejected, and rolled-back version rejected","Only that valid firmware is accepted","Wi-Fi connected, disconnected, and reconnecting states"], correct:1, explain:"These three cases together prove both the signature verification and the anti-rollback mechanisms actually function, not just exist in code."}
+    {q:"You suspect a shared variable is being modified unexpectedly from an interrupt. What debugging tool is best suited to catch this directly?", options:["A breakpoint on the interrupt handler's first line","A watchpoint on the variable itself, which triggers regardless of which code path modifies it","Print statements only","Increasing the CPU clock speed"], correct:1, explain:"Watchpoints are specifically designed to catch unexpected modifications to a memory location from any code path, including interrupts."},
+    {q:"Why would you reach for a logic analyzer rather than an oscilloscope when debugging an SPI communication issue?", options:["Oscilloscopes cannot see digital signals at all","A logic analyzer can capture and decode all SPI lines simultaneously as readable bit-level data, which is more useful for protocol-level debugging","Logic analyzers are always cheaper","Oscilloscopes are obsolete"], correct:1, explain:"Logic analyzers' multi-channel digital decoding is exactly suited to bus-protocol debugging, versus an oscilloscope's strength in fine analog signal detail."},
+    {q:"Why are race conditions often described as 'notoriously hard to debug'?", options:["They always crash the program immediately and obviously","They're often intermittent and timing-dependent, and attaching a debugger can itself change the timing enough to hide the bug", "They only occur in single-threaded code","They are a myth in embedded systems"], correct:1, explain:"The 'observer effect' of debugging tools changing timing, combined with intermittent reproducibility, is what makes race conditions particularly frustrating."}
   ],
   interview:[
-    {q:"Walk me through your secure OTA implementation and how it builds on your STMicroelectronics internship OTA experience.", a:"Talking points: contrast prior OTA (functional update mechanism) with this version (security-critical trust boundary) — signature verification, anti-rollback, and why each matters."},
-    {q:"What's the difference between signature verification and anti-rollback protection, and why do you need both?", a:"Talking points: signature = authenticity/integrity of THIS image; anti-rollback = preventing a valid-but-outdated (vulnerable) image from being reinstalled — two different threats, two different defenses."},
-    {q:"How would an attacker try to defeat your OTA security, and how does your design prevent it?", a:"Talking points: tampering (caught by signature check), replay of old firmware (caught by anti-rollback), and rollback-counter tampering (caught by protected/OTP storage) — show you've reasoned through the attacker's options."},
-    {q:"What would you add to make this OTA design production-grade?", a:"Talking points: A/B partition schemes for safe fallback, encrypted OTA images (not just signed), staged/canary rollouts, and secure element-backed key storage."}
+    {q:"Tell me about a bug you debugged (or would expect to debug) that only appeared on real hardware, not in simulation.", a:"Talking points: timing, power, or interference-related issues that don't show up on a desk/simulator — demonstrates hardware debugging maturity."},
+    {q:"What's your general approach when a bug is intermittent and hard to reproduce?", a:"Talking points: add logging/telemetry to capture more context, try to identify a triggering pattern, consider concurrency/timing issues (race conditions), and use watchpoints if shared state is suspected."},
+    {q:"What embedded debugging tools are you comfortable with?", a:"Talking points: JTAG/SWD debuggers, logic analyzers, oscilloscopes, and serial/print debugging — be honest about your actual hands-on experience level with each."}
   ]
 },
 {
   month:3, week:11,
-  title:"Attack Your Own Device",
-  summary:"Light offensive testing: replay, tampering, and traffic sniffing before/after encryption.",
+  title:"IoT Standards & Industry Landscape",
+  summary:"Where IoT engineering jobs actually exist, what verticals look like, and the standards/certifications conversations you'll encounter.",
   flashcards:[
-    {q:"What is a replay attack, and how would you test for it on your MQTT pipeline?", a:"An attacker captures a legitimate, previously-sent message and resends it later to trick the system into accepting it again. You'd test by capturing a real MQTT publish, then resending the exact same captured bytes later and checking whether the system accepts it as if it were new/valid."},
-    {q:"Why is the ability to demonstrate 'before/after' traffic sniffing (Week 6 vs. earlier) a strong portfolio artifact?", a:"It gives concrete, visual proof of the security improvement — showing readable plaintext before encryption and random-looking ciphertext after is far more convincing than a written claim, and shows you understand how to validate your own security claims."},
-    {q:"What does it mean to 'tamper with a firmware image' as a self-test, and what should happen?", a:"Deliberately modifying bytes in a signed firmware image (simulating an attacker) and attempting to load it — a correct secure boot implementation should detect the signature mismatch and refuse to execute it."},
-    {q:"What's the difference between this kind of self-testing and 'full pentesting'?", a:"This is targeted, scoped verification of the specific defenses you built (does the mitigation actually work?), not a broad, adversarial search for unknown vulnerabilities across the whole system — full pentesting is a distinct, more exhaustive discipline."},
-    {q:"Why write an 'attack → vulnerability → mitigation' document rather than just fixing things silently?", a:"It documents your security reasoning process explicitly — the kind of structured thinking (what could go wrong, why, how it's addressed) that's highly valued and rarely demonstrated by junior candidates, making it a genuine differentiator."}
+    {q:"Name three major IoT industry verticals and roughly what kind of work each involves.", a:"Consumer/smart home (lamps, thermostats, wearables — UX-heavy, cost-sensitive, high volume), Industrial IoT/IIoT (factory sensors, predictive maintenance — reliability/safety-critical, harsher environments, often wired/robust protocols), Healthcare/medical devices (wearable monitors, remote patient monitoring — heavy regulatory requirements, e.g. FDA)."},
+    {q:"What does FCC/CE certification broadly relate to, and why should an IoT engineer be aware of it even if not directly responsible for it?", a:"Regulatory certifications (FCC in the US, CE in Europe) confirming a product's radio emissions and electrical safety meet legal requirements for sale in that region — engineers should be aware because design choices (antenna design, shielding, radio power) affect whether a product can pass certification, so it can't be treated as an afterthought."},
+    {q:"What is 'Industry 4.0', as a term you might encounter in industrial IoT job postings?", a:"A broad industry term for the trend of integrating IoT sensors, automation, data analytics, and connected machinery into manufacturing and industrial processes — useful vocabulary to recognize even without deep specialization."},
+    {q:"Why do industrial IoT (IIoT) environments often still rely on older wired protocols like Modbus/RS-485 alongside newer wireless tech?", a:"Industrial environments prioritize extreme reliability, noise immunity, and long service life — wired protocols like Modbus are proven, simple, robust in electrically noisy factory environments, and many existing installed equipment already speaks them, so wireless often supplements rather than replaces them."},
+    {q:"What's a realistic expectation about how much regulatory/certification depth an entry-level IoT engineer needs?", a:"Deep certification expertise is usually a specialized role (RF/compliance engineers), but a general IoT engineer should understand that these requirements exist and can constrain design decisions early — enough awareness to ask the right questions and not be blindsided later in a project."}
   ],
   quiz:[
-    {q:"You resend a previously captured, validly-encrypted MQTT message and the system accepts it as new. What's missing?", options:["Encryption is broken","There's no replay protection (e.g. sequence numbers, timestamps, or nonces tied to freshness)","The MAC is invalid","TLS isn't configured"], correct:1, explain:"Encryption alone doesn't prevent replay — a captured valid ciphertext is still valid ciphertext. Freshness mechanisms (counters/timestamps checked by the receiver) are needed separately."},
-    {q:"What's the key difference between this week's exercise and full penetration testing?", options:["There is no difference","This is scoped, targeted verification of your own known defenses; full pentesting is broader and adversarial in scope", "Pentesting doesn't apply to embedded systems","This week's exercise is more thorough than pentesting"], correct:1, explain:"It's explicitly framed as a 'light version' — verifying what you built works as intended, not an exhaustive unknown-vulnerability hunt."},
-    {q:"Why is a before/after Wireshark comparison (unencrypted vs. encrypted) valuable for an interview portfolio?", options:["It's not particularly valuable","It provides concrete, visual proof of a security improvement rather than just a verbal claim","It only matters for compliance paperwork","Wireshark captures are required by law"], correct:1, explain:"Concrete artifacts (screenshots/captures) that prove a claim are more persuasive and memorable in an interview than describing the same thing in words."}
+    {q:"Why might a factory still use Modbus over RS-485 instead of switching entirely to a modern wireless protocol?", options:["Modbus is faster than all wireless protocols","Wired protocols offer superior reliability/noise immunity in harsh industrial environments and much existing equipment already uses them","Wireless is illegal in factories","RS-485 is a wireless protocol"], correct:1, explain:"Industrial environments prioritize robustness and compatibility with existing infrastructure over adopting the newest available technology."},
+    {q:"Why should an IoT hardware engineer care about FCC/CE certification even if a specialist handles the formal testing?", options:["They shouldn't, it's entirely someone else's problem","Design choices like antenna and shielding affect whether the product can pass certification, so it needs consideration early, not as an afterthought","Certification only applies to software","FCC/CE only matters for wired devices"], correct:1, explain:"Certification requirements can force design changes — awareness early avoids expensive late-stage redesigns."},
+    {q:"What best characterizes the difference between consumer/smart-home IoT work and industrial IoT (IIoT) work?", options:["They are functionally identical roles","Consumer IoT tends to be UX/cost-sensitive and high-volume; IIoT tends to prioritize reliability/safety in harsher environments","Industrial IoT never uses sensors","Consumer IoT doesn't use wireless protocols"], correct:1, explain:"Recognizing these differing priorities helps you understand what a given IoT job posting is actually optimizing for."}
   ],
   interview:[
-    {q:"Tell me about an attack you tried against your own device — what happened and what did it teach you?", a:"Talking points: frame as a STAR story — the specific attack attempted, the result (did the defense hold?), and what it taught you about the design's strengths/limits."},
-    {q:"How is a replay attack different from a tampering attack, and does encryption alone stop either?", a:"Talking points: tampering is caught by a MAC/signature (integrity); replay requires separate freshness protection (nonces/counters/timestamps) — encryption's confidentiality property doesn't address either directly."},
-    {q:"Why is 'light' self-testing valuable even though it's not full penetration testing?", a:"Talking points: it validates that your specific defenses actually work as designed (not just as claimed), it's realistic given time/scope constraints, and it builds the mindset needed before doing formal pentesting later."},
-    {q:"Walk me through your attack → vulnerability → mitigation documentation for one specific test.", a:"Talking points: pick one concrete example (e.g. tampered firmware image) and narrate it end-to-end as you would to a hiring panel."}
+    {q:"What IoT industry verticals are you most interested in, and why?", a:"Talking points: be genuine and specific — connect your interests/background (e.g. embedded security experience) to a plausible vertical (industrial, consumer, healthcare) rather than a generic answer."},
+    {q:"What do you know about regulatory considerations (FCC/CE) in IoT product development?", a:"Talking points: conceptual awareness that these exist and constrain design early — you don't need deep expertise, just informed awareness."},
+    {q:"How do industrial IoT and consumer IoT engineering priorities differ, in your understanding?", a:"Talking points: reliability/safety/harsh-environment focus vs. UX/cost/volume focus — shows breadth of industry awareness beyond just technical protocol knowledge."}
   ]
 },
 {
   month:3, week:12,
-  title:"Interview Prep & Polish",
-  summary:"Bringing it all together: portfolio polish and confidently defending every layer of the system.",
+  title:"Job Readiness — Resume, Portfolio & Interview Prep",
+  summary:"Pulling the whole curriculum together into a coherent story you can tell confidently in any IoT interview.",
   flashcards:[
-    {q:"What should a strong project README include, at minimum, for a security-focused portfolio piece?", a:"An architecture diagram, a clear description of what the project does and why, the threat model / security decisions made, setup/run instructions, and ideally the attack-testing results — enough for a reviewer to understand the security story without reading all the code."},
-    {q:"Why does 'clean commit history' matter for a portfolio project, beyond aesthetics?", a:"It shows how you actually worked — incremental, logical progress — which reviewers (and interviewers who look at GitHub) read as a signal of good engineering discipline and process, not just a final result."},
-    {q:"What's the difference between explaining your thesis 'algorithm-level' versus just saying 'I implemented it'?", a:"Algorithm-level means being able to describe how ChaCha20-Poly1305 actually works (stream cipher construction, MAC computation, AEAD composition) and defend design decisions — versus a surface-level claim that doesn't survive a single follow-up question."},
-    {q:"Why is 'what would you do differently with more time/budget' a valuable question to prepare for?", a:"It demonstrates engineering judgment and self-awareness about trade-offs made under real constraints — interviewers use it to distinguish candidates who understand limitations from those who think their solution is 'finished' or perfect."},
-    {q:"What is the STAR format for interview stories, and why use it?", a:"Situation, Task, Action, Result — a structure that keeps behavioral/technical stories concise, concrete, and outcome-focused, making them easier for an interviewer to follow and remember versus a rambling narrative."}
+    {q:"What's a strong structure for describing your technical background in an IoT interview, when you have both broad and specialized experience?", a:"Lead with the specific role-relevant strength first (tailored to the job description), then broaden out — e.g. 'I have hands-on experience across the IoT stack from embedded firmware through cloud connectivity, plus specialized depth in [your differentiator]' rather than a flat chronological list."},
+    {q:"What is the STAR format for behavioral/technical interview answers, and why use it?", a:"Situation, Task, Action, Result — a structure keeping your answers concrete, concise, and outcome-focused, much easier for an interviewer to follow than a rambling narrative."},
+    {q:"Why is it valuable to prepare 2-3 specific 'debugging story' answers in advance?", a:"'Tell me about a bug you fixed' is one of the most common embedded/IoT interview questions — having concrete, specific, well-rehearsed examples ready (ideally spanning different tools/techniques: a logic analyzer story, a race-condition story, etc.) is far stronger than improvising in the moment."},
+    {q:"What's a 'system design'-style question in an IoT context, and how should you approach one?", a:"Something like 'design a smart irrigation system for a farm' — approach it by clarifying requirements/constraints first (scale, power budget, connectivity available, budget), then reasoning through protocol choice, architecture (edge vs cloud), and trade-offs out loud, rather than jumping straight to a specific answer."},
+    {q:"Why is honestly stating the limits of your knowledge often better than bluffing in a technical interview?", a:"Experienced interviewers can usually tell when someone is bluffing, and it erodes trust in everything else you said; saying 'I haven't worked directly with X, but here's how I'd reason about it based on Y' demonstrates both honesty and problem-solving ability."},
+    {q:"How should a strong GitHub portfolio project's README be structured for an IoT/embedded role specifically?", a:"A clear description with a photo/video (since embedded work is physical and can't just be 'run' by a reviewer), an architecture diagram, the specific protocols/concepts demonstrated, and setup instructions — optimized for a reviewer to quickly grasp what you actually built and understand, not just that code exists."}
   ],
   quiz:[
-    {q:"Why is a written threat model doc specifically worth including in your GitHub repo, not just knowing it verbally?", options:["It's not necessary if you can explain it live","It gives reviewers/interviewers a artifact to read beforehand and shows structured documentation skill, not just verbal recall","Repos are required to have one","It replaces the need for a README"], correct:1, explain:"Written documentation is a durable, reviewable artifact — it lets someone assess your security thinking without needing you present, which is valuable both for interviews and real engineering teams."},
-    {q:"An interviewer asks a sharp follow-up about why you chose ChaCha20-Poly1305 over AES-GCM. What best demonstrates readiness?", options:["Reciting that ChaCha20 is 'newer'","Explaining concrete trade-offs (software performance without hardware acceleration, constant-time properties, and your thesis-specific rationale)","Saying you just followed a tutorial","Avoiding the question"], correct:1, explain:"This is exactly the kind of algorithm-level, trade-off-aware answer that Month 3 prep is meant to produce — specific and defensible, not generic."},
-    {q:"What does the STAR format stand for?", options:["Security, Threat, Attack, Response","Situation, Task, Action, Result","Start, Test, Analyze, Report","System, Task, Approach, Review"], correct:1, explain:"STAR is a standard structure for behavioral/technical interview stories: set the scene, state the goal, describe what you did, and state the outcome."}
+    {q:"Why is having 2-3 prepared 'debugging story' answers valuable for IoT interviews?", options:["It's not particularly useful, debugging questions are rare","'Tell me about a bug you fixed' is extremely common in embedded interviews, and prepared concrete stories beat improvised vague ones","Interviewers only ask about resumes","Debugging stories replace the need for technical knowledge"], correct:1, explain:"This is one of the most frequently asked question types in embedded/IoT interviews — preparation pays off directly."},
+    {q:"When faced with a system-design-style IoT question you don't immediately know the 'right' answer to, what's the best approach?", options:["Stay silent until you think of the perfect answer","Clarify requirements/constraints and reason through trade-offs out loud", "Say you don't know and ask to skip the question","Give the first answer that comes to mind without explanation"], correct:1, explain:"Interviewers are usually evaluating your reasoning process at least as much as the final answer — thinking out loud from clarified requirements is the expected approach."},
+    {q:"Why is honestly acknowledging a knowledge gap generally better than bluffing in a technical interview?", options:["It makes you look unprepared and should be avoided at all costs","Experienced interviewers often detect bluffing, which damages trust in your other answers; honest reasoning from what you do know is more credible","Interviewers never ask about anything outside your resume","Bluffing is expected and rewarded"], correct:1, explain:"Credibility compounds — one detected bluff can cast doubt on genuinely strong answers you gave elsewhere in the same interview."}
   ],
   interview:[
-    {q:"Walk me through your project end-to-end as if I'm a hiring manager seeing it for the first time.", a:"Talking points: this is the master answer — architecture, key decisions per layer, and the overarching security story, delivered confidently and concisely."},
-    {q:"What's a race condition, and did you encounter one in this project?", a:"Talking points: definition (unsynchronized concurrent access to shared state causing unpredictable behavior), and tie back to your FreeRTOS mutex/semaphore work in Week 3 if applicable."},
-    {q:"How does secure boot work? (Be ready to explain this cold, without notes.)", a:"Talking points: root of trust, chain of trust, signature verification, rejection on failure — practice saying this fluently in under a minute."},
-    {q:"AES vs. ChaCha20-Poly1305 trade-offs — give me your take.", a:"Talking points: hardware acceleration availability, software performance, constant-time properties, and connect it back to your specific thesis rationale."},
-    {q:"What would you do differently with more time or budget on this project?", a:"Talking points: prepare 2-3 concrete, specific answers (e.g. secure element for keys, A/B OTA partitions, formal pentest) — vague answers here read poorly."},
-    {q:"Tell me about a bug you debugged that taught you something important.", a:"Talking points: have a specific STAR story ready, ideally involving GDB/watchpoints or a race condition — the concrete detail is what makes it memorable."}
+    {q:"Walk me through your background and what kind of IoT role you're looking for.", a:"Talking points: this is your opening pitch — lead with what's most relevant to the specific role, mention your breadth (this curriculum) and any specialization you have, and be concise."},
+    {q:"Tell me about a technical challenge you're proud of solving.", a:"Talking points: use STAR format, pick something with a concrete before/after, and be ready for follow-up questions probing the details — don't pick something you can't defend under scrutiny."},
+    {q:"Design a [smart home / industrial / wearable] IoT system for [some scenario] — walk me through your approach.", a:"Talking points: clarify constraints first (scale, power, connectivity, budget), then reason through protocol and architecture choices out loud, explicitly naming trade-offs rather than asserting one 'correct' design."},
+    {q:"What's an area of IoT engineering you feel less confident in, and how are you addressing that?", a:"Talking points: pick something genuine and show you have a concrete plan (a course, a project, reading) — demonstrates self-awareness and initiative rather than defensiveness."}
+  ]
+}
+];
+const PROJECT_WEEKS = [
+{
+  month:1, week:1,
+  title:"Phase 1 — ESP32 Foundation (V0.1)",
+  summary:"Applying Core Weeks 1-4 (embedded basics, protocols, wireless, RTOS) to bring the Compowder's connectivity foundation to life.",
+  flashcards:[
+    {q:"What are the six concrete things the Compowder's V0.1 milestone needs to demonstrate?", a:"1) ESP32 boots. 2) Connects to Wi-Fi (Core Week 3: Wi-Fi trade-offs). 3) Synchronizes time via NTP. 4) Displays/logs date and time over serial. 5) Starts BLE advertising (Core Week 3: BLE fundamentals). 6) Is discoverable by a phone/PC scanning for BLE devices."},
+    {q:"Which Core curriculum week's concepts directly justify using BLE (not Wi-Fi) for the eventual phone link?", a:"Core Week 3 (Wireless Protocols Landscape) — BLE's low power draw for small, infrequent data exchanges is exactly suited to a battery-powered wearable's phone communication, versus Wi-Fi's higher power draw for that use case."},
+    {q:"How does the manager-pattern architecture (wifi_manager, ble_manager, time_manager, app_state) reflect general embedded firmware architecture principles?", a:"It's a practical application of separation of concerns and modularity — the same reasoning behind Core Week 4's RTOS task/module separation, applied here even before an RTOS is necessarily introduced, keeping each subsystem independently testable and swappable."},
+    {q:"Why validate this milestone via serial output only, with no display yet?", a:"It isolates the riskiest foundational layer (Wi-Fi + NTP + BLE) from UI complexity, proving the core connectivity stack works before building anything on top of it — same incremental-risk-reduction principle used throughout real embedded projects."},
+    {q:"What's a realistic Wi-Fi connection failure to handle even at this early phase, and why does it matter for a portfolio demo?", a:"Wrong password, out-of-range network, or router downtime — handling this gracefully (clear retry/timeout behavior visible in serial output) turns a potential live-demo failure into a non-issue, and shows unhappy-path thinking to reviewers."}
+  ],
+  quiz:[
+    {q:"Why does the Compowder need BLE specifically for the phone link, based on the wireless protocol trade-offs from the Core curriculum?", options:["BLE has the longest range of all wireless protocols","BLE's low power draw suits small, infrequent data exchanges on a battery-powered wearable, unlike Wi-Fi's higher power cost","Wi-Fi cannot connect to phones at all","BLE and Wi-Fi are functionally identical"], correct:1, explain:"This directly applies the range/power/bandwidth trade-off reasoning from the Core Week 3 wireless protocols lesson to a concrete design decision."},
+    {q:"Why prove Wi-Fi+NTP+BLE via serial output before writing any display code?", options:["Display code can't coexist with BLE on the same chip","It isolates and validates the foundational connectivity layer before adding UI complexity on top","Serial output is a hard requirement of the BLE stack","It's simply faster to type"], correct:1, explain:"Classic incremental engineering — validate the riskiest, most foundational layer first."}
+  ],
+  interview:[
+    {q:"Tell me about your Compowder project's first milestone — what exactly did you prove was working, and how?", a:"Talking points: the six concrete checks (boot, Wi-Fi, NTP, serial time display, BLE advertising, phone-discoverable), verified via serial monitor and a BLE scanner app."},
+    {q:"How does this practical build connect to the wireless protocol trade-offs you studied more generally?", a:"Talking points: explicitly connect your BLE choice here to the power/range/bandwidth reasoning from your general IoT protocol knowledge — showing you can apply theory to a real design decision, not just recite it."}
+  ]
+},
+{
+  month:1, week:2,
+  title:"Phase 2 — Embedded UI on a Constrained Round Display",
+  summary:"Applying general embedded UI/LVGL concepts specifically to the Compowder's 240×240 round screen and pink/purple aesthetic.",
+  flashcards:[
+    {q:"Why is LVGL a practical choice here, connecting back to general embedded GUI concepts?", a:"LVGL is purpose-built for resource-constrained MCU displays exactly like this one, with a widget/styling system and CrowPanel support — a direct, concrete application of 'embedded GUI library' as a general IoT engineering concept."},
+    {q:"What specific hardware constraint from the CrowPanel spec (1.28\" round, 240×240) shapes the Compowder's UI design decisions?", a:"The round bezel means content near the corners of the underlying square framebuffer would be clipped/hidden — so layouts must center content and use circular/arc-friendly arrangements rather than a generic rectangular design."},
+    {q:"Why keep application logic separate from the LVGL rendering code specifically for this project's hardware timeline?", a:"The CrowPanel wasn't owned yet when development started — this separation let development proceed on a basic ESP32 with a mock/simulated UI, with the real hardware swapped in later without rewriting the app's behavior, directly solving the 'don't rewrite everything' requirement."},
+    {q:"What screens does the Compowder's V0.2 UI milestone require?", a:"A clock screen (time/date/day), a home/navigation screen, a notifications screen, and a home-device-control screen — all styled with the pink/purple, rounded-card, sparkle-accented Totally Spies aesthetic."},
+    {q:"How does the project's device-card UI pattern (for lamps, fans, etc.) reflect a general good UI/firmware practice?", a:"A single reusable card component driven by a data list means adding a new controllable device later is a data change, not new UI code — the same 'data-driven, avoid one-off duplication' principle valued in any UI or firmware codebase."}
+  ],
+  quiz:[
+    {q:"Why does the Compowder's UI need to specifically account for a round (not rectangular) display?", options:["Round displays can't render text","Content placed near the corners of the square framebuffer would be hidden behind the round physical bezel","LVGL doesn't support round displays at all","It's purely a stylistic choice with no functional reason"], correct:1, explain:"This is a real, hardware-driven UI design constraint specific to round-display wearables."},
+    {q:"Why was separating app logic from display rendering particularly important given this project's specific circumstances?", options:["It wasn't important, since LVGL requires this by default","The CrowPanel hardware wasn't owned yet, so this separation let development proceed on other hardware and get swapped in later without a rewrite","It only matters for battery life","Display separation is unrelated to hardware ownership timing"], correct:1, explain:"This directly reflects the project's real constraint — no CrowPanel on hand yet — turned into a deliberate architecture decision."}
+  ],
+  interview:[
+    {q:"How did general embedded UI/GUI library knowledge translate into your specific Compowder screen designs?", a:"Talking points: LVGL's object/style model applied concretely to the round-display constraint and the specific pink/purple Totally Spies aesthetic requirement."},
+    {q:"Why did you architect the app to not depend on owning the final hardware from day one?", a:"Talking points: the practical constraint (CrowPanel not yet purchased) driving a genuinely good architectural decision — logic/rendering separation — that would have been good practice regardless."}
+  ]
+},
+{
+  month:2, week:3,
+  title:"Phase 3 — BLE Phone Integration & Notifications",
+  summary:"Turning general BLE/GATT knowledge into a working phone-to-wearable notification pipeline.",
+  flashcards:[
+    {q:"How does the Compowder's notification characteristic design apply general GATT concepts?", a:"A custom-UUID characteristic configured for 'notify' lets the phone (BLE central) push new notification data to the Compowder (BLE peripheral) proactively — a direct, concrete use of the general notify-characteristic concept for a real feature."},
+    {q:"What are the four things the first phase of V0.3 needs to demonstrate?", a:"1) A BLE connection between phone and Compowder. 2) A test notification sent from the phone. 3) The notification displayed on the Compowder's screen. 4) A buzzer/vibration event triggered by it."},
+    {q:"Why is 'call notification only' (not answering calls) a deliberately scoped feature, connecting to general engineering-judgment principles?", a:"It's a realistic scope decision given time/complexity constraints — achievable via a phone-side companion app relaying data over the already-proven BLE pipeline, versus the much larger undertaking of actual call control, which is explicitly deferred rather than left as an unexplained gap."},
+    {q:"What data format decision matters here, and why?", a:"A small, consistent payload structure (e.g. event type + caller name) for the notification characteristic — designed once, so it extends cleanly to future notification types (texts, alarms) without repeated rework, reflecting the general principle of designing extensible data formats up front."}
+  ],
+  quiz:[
+    {q:"Why start the Compowder's phone integration with a hardcoded test notification rather than jumping to real call detection?", options:["Real call detection is technically impossible","It isolates and proves the BLE pipeline (connect \u2192 receive \u2192 display \u2192 alert) works before adding the harder real-world event-detection problem","Hardcoded notifications are required by BLE","Phones cannot send any test data"], correct:1, explain:"Incremental validation of the simpler mechanism before layering on real-world complexity — a recurring theme across this whole practical track."},
+    {q:"Why does the Compowder use a 'notify'-configured characteristic specifically for incoming notifications?", options:["It's the only characteristic type BLE supports","It lets the phone proactively push new data without the Compowder having to constantly poll/re-read","Notify characteristics are required for pairing","It reduces Bluetooth range requirements"], correct:1, explain:"This is the concrete general-knowledge concept (notify characteristics) applied directly to this specific feature."}
+  ],
+  interview:[
+    {q:"Walk me through the BLE pipeline from your phone to the Compowder's buzzer.", a:"Talking points: phone-side relay \u2192 BLE notify characteristic \u2192 firmware parse \u2192 app_state update \u2192 UI display \u2192 buzzer/vibration trigger — a complete, concrete story."},
+    {q:"Why did you scope this as notification-only rather than full call handling?", a:"Talking points: realistic scoping given complexity/time constraints, and how this connects to the general engineering-judgment principle of shipping a complete smaller feature over an incomplete larger one."}
+  ]
+},
+{
+  month:2, week:4,
+  title:"Phase 4 — Real Notification Detection & Platform Constraints",
+  summary:"Investigating real Android/iOS notification detection, and applying general device-management/scoping judgment to an honest project status.",
+  flashcards:[
+    {q:"What Android mechanism could let a companion app detect and relay an incoming call to the Compowder?", a:"A NotificationListenerService or telephony state APIs — the companion app observes the event and forwards relevant data (caller name) over the already-established BLE connection from Phase 3."},
+    {q:"Why is iOS meaningfully more restrictive here, and how does this connect to general platform/ecosystem awareness?", a:"iOS sandboxes third-party apps much more heavily, restricting access to call state and system notifications the way Android's APIs allow — a concrete example of the kind of platform-specific constraint any IoT engineer working on companion-app integrations needs to research rather than assume."},
+    {q:"If real call-detection proves infeasible within the project's timeframe, what's the professionally sound way to handle it, per general job-readiness principles from the Core curriculum?", a:"Ship and clearly document the working, demonstrable notification pipeline, and honestly scope real automatic call-detection as 'future work' — directly applying the Core curriculum's 'honest scope management over overclaiming' interview principle to your own project status."},
+    {q:"What's the concrete V0.3 milestone deliverable by the end of this phase?", a:"An end-to-end notification pipeline — either genuine automatic call detection if achieved, or a robust, reliably demonstrable manual/test-triggered notification pipeline with a documented explanation of what's implemented vs. planned."}
+  ],
+  quiz:[
+    {q:"Why is Android generally more feasible than iOS for a third-party call/notification relay feature?", options:["Android phones have better Bluetooth hardware","Android's notification-listener and telephony APIs allow more third-party access than iOS's stricter sandboxing", "iOS doesn't support BLE","Android automatically pairs with any nearby BLE device"], correct:1, explain:"A real, well-documented platform constraint worth researching before committing to a feature's full scope."},
+    {q:"If full automatic call detection isn't finished in time, what's the best move for your portfolio, per general job-readiness practice?", options:["Hide the feature and hope no one asks","Clearly document what's working vs. planned as future work, rather than overclaiming or leaving it unexplained","Delay the whole project indefinitely","Claim it works regardless"], correct:1, explain:"This directly mirrors the Core curriculum's Week 12 lesson on honest scope communication in interviews and portfolios."}
+  ],
+  interview:[
+    {q:"What did you learn about platform-specific constraints (Android vs. iOS) while building this feature?", a:"Talking points: concrete research findings on notification-listener/telephony API access differences — shows genuine investigation, not assumption."},
+    {q:"If you had to demo this project today, what's actually working versus still in progress?", a:"Talking points: be precise and honest, e.g. 'BLE pipeline fully working and demonstrated; automatic Android call detection is prototyped; iOS is out of scope for this phase' — apply the general honesty-over-bluffing interview principle to your own project."}
+  ]
+},
+{
+  month:3, week:5,
+  title:"Phase 5 — MQTT Home Control & CrowPanel Hardware Bring-Up",
+  summary:"Applying general MQTT/pub-sub and hardware bring-up practices to finish the Compowder's home-automation and physical hardware integration.",
+  flashcards:[
+    {q:"How does the Compowder's lamp control feature apply general MQTT pub/sub concepts?", a:"Tapping a device tile publishes a command to a /set topic; Home Assistant relays it to the real device; the device's /state topic then updates the Compowder's UI — a direct, concrete instance of the general pub/sub decoupling and command/state topic separation covered in the Core curriculum."},
+    {q:"Why use Home Assistant as a hub rather than writing custom integration code per device brand, applying general IoT architecture reasoning?", a:"It mirrors the general 'gateway/hub' pattern — one integration point (MQTT to Home Assistant) instead of N device-specific protocol implementations, the same reasoning behind IoT gateways bridging many device types to one system."},
+    {q:"What general hardware bring-up principle applies directly to porting firmware onto the real CrowPanel board?", a:"Bring up one new peripheral at a time (display, then touch, then buzzer, then vibration, then encoder, then RTC) so any bug can be attributed to the specific newly-added component — the same incremental-isolation debugging principle from general embedded practice."},
+    {q:"Why validate CrowPanel peripherals over USB power before wiring in the LiPo battery, applying general power-management sequencing?", a:"It isolates variables — confirming the digital/peripheral side works on stable, known USB power before introducing the separate uncertainty of a battery circuit, the same debugging discipline of changing one variable at a time."},
+    {q:"How does the decision to skip secure boot/signed OTA on this project reflect general job-readiness scope judgment?", a:"Matching security engineering investment to this project's actual goal (a strong, complete, hireable portfolio piece on a tight timeline) rather than over-investing in hardening that wasn't required — while retaining baseline hygiene (no hardcoded credentials) and being ready to discuss the heavier techniques from prior study if a role required them."}
+  ],
+  quiz:[
+    {q:"Why does the Compowder separate a device's /set and /state MQTT topics rather than using one combined topic?", options:["MQTT technically forbids single topics","It avoids ambiguity between a command being sent and a status being reported — a general pub/sub design best practice", "It reduces the number of supported devices","It's purely stylistic"], correct:1, explain:"This directly applies the general command/state topic separation principle from the Core MQTT lesson to a concrete home-control feature."},
+    {q:"Why bring up CrowPanel peripherals one at a time instead of all at once?", options:["Order doesn't actually matter","Isolating each new addition makes it far easier to attribute a bug to the specific new component, per general embedded debugging practice","The ESP32-C3 can only initialize one peripheral per boot","Buzzer and vibration motor are electrically incompatible"], correct:1, explain:"A direct, practical application of the general incremental hardware bring-up principle."},
+    {q:"How should skipping secure boot/OTA signing on this project be framed, per general job-readiness principles?", options:["As an oversight that should be hidden","As a deliberate scope decision matching security investment to the project's actual goals, while keeping baseline hygiene and being ready to discuss deeper security techniques if asked", "As proof security doesn't matter for IoT","As unrelated to job readiness"], correct:1, explain:"This mirrors the Core curriculum's general scoping-judgment interview principle, applied specifically to this project's real design choice."}
+  ],
+  interview:[
+    {q:"Walk me through what happens when you tap a lamp icon on the Compowder, start to finish.", a:"Talking points: touch \u2192 MQTT publish to /set \u2192 Home Assistant relay \u2192 real device \u2192 /state topic update \u2192 UI reflects new state — a complete, concrete pub/sub story."},
+    {q:"Tell me about your hardware bring-up process when the CrowPanel board physically arrived.", a:"Talking points: incremental peripheral-by-peripheral validation, and a specific bring-up bug you hit (or would expect) and how you'd isolate it."},
+    {q:"Why did you deliberately skip secure boot / signed firmware for this specific project?", a:"Talking points: scope discipline matched to this project's actual goals, baseline credential hygiene retained, and your readiness to apply deeper security engineering (from your separate crypto/security background) if a role's requirements called for it."},
+    {q:"How does this practical project connect back to everything in your general IoT curriculum?", a:"Talking points: use this as your closing synthesis answer — name several Core curriculum topics (wireless protocol trade-offs, MQTT pub/sub, embedded UI, hardware bring-up, security scoping) and point to exactly where each showed up as a real decision in this project."}
   ]
 }
 ];
@@ -585,17 +685,44 @@ function initSync(){
     }
   }, err=>{ console.warn("Sync listener failed:", err); });
 }
-function weekKey(m,w){ return "m"+m+"w"+w; }
-function getWeekProgress(m,w){
-  const k = weekKey(m,w);
+function weekKey(track,m,w){ return track+"_m"+m+"w"+w; }
+function getWeekProgress(track,m,w){
+  const k = weekKey(track,m,w);
   if(!progress[k]) progress[k] = {known:{}, quizBest:0, quizDone:false, interview:{}};
   return progress[k];
 }
 
 let progress = loadProgress();
 
+/* track config */
+const TRACKS = {
+  core: {
+    label: "Core IoT Curriculum",
+    subtitle: "General IoT engineering fundamentals — job-ready for any IoT role",
+    icon: "📡",
+    weeks: CORE_WEEKS,
+    monthMeta: {
+      1:{name:"Month 1", sub:"Embedded & Connectivity Foundations", cls:""},
+      2:{name:"Month 2", sub:"Data, Networking & Cloud", cls:"m2"},
+      3:{name:"Month 3", sub:"Security, Testing & Job Prep", cls:"m3"}
+    },
+    months:[1,2,3]
+  },
+  project: {
+    label: "Compowder Project",
+    subtitle: "Practical companion build — applying the theory to a real wearable",
+    icon: "✦",
+    weeks: PROJECT_WEEKS,
+    monthMeta: {
+      1:{name:"Practical Track", sub:"Totally Spies Compowder — hands-on phases", cls:"m2"}
+    },
+    months:[1]
+  }
+};
+
 /* view state */
-let view = "overview"; // overview | week
+let view = "trackSelect"; // trackSelect | overview | week
+let currentTrack = null;
 let currentMonth = null, currentWeek = null;
 let activeTab = "flashcards"; // flashcards | quiz | interview
 let fcIndex = 0, fcFlipped = false;
@@ -607,21 +734,14 @@ let quizIndex = 0, quizScore = 0, quizAnswered = false, quizSelected = null, qui
 const root = document.getElementById("app");
 
 function render(){
-  if(view === "overview") renderOverview();
+  if(view === "trackSelect") renderTrackSelect();
+  else if(view === "overview") renderOverview();
   else renderWeek();
 }
 
-function monthMeta(m){
-  return {
-    1:{name:"Month 1", sub:"Bare-Metal + FreeRTOS + Bridge", cls:""},
-    2:{name:"Month 2", sub:"Cryptography + Secure Transport", cls:"m2"},
-    3:{name:"Month 3", sub:"Firmware Security + Interview Ready", cls:"m3"}
-  }[m];
-}
-
-function weekStatus(m,w){
-  const p = getWeekProgress(m,w);
-  const wk = WEEKS.find(x=>x.month===m && x.week===w);
+function weekStatus(track,m,w){
+  const p = getWeekProgress(track,m,w);
+  const wk = TRACKS[track].weeks.find(x=>x.month===m && x.week===w);
   const fcTotal = wk.flashcards.length;
   const fcKnown = Object.values(p.known).filter(Boolean).length;
   const ivTotal = wk.interview.length;
@@ -633,22 +753,69 @@ function weekStatus(m,w){
   return {label:"In progress", cls:"chip-progress", pct:Math.round(doneUnits/totalUnits*100)};
 }
 
+function trackOverallPct(track){
+  const t = TRACKS[track];
+  let sum=0, count=0;
+  t.months.forEach(m=>{
+    t.weeks.filter(w=>w.month===m).forEach(w=>{
+      sum += weekStatus(track,m,w.week).pct; count++;
+    });
+  });
+  return count ? Math.round(sum/count) : 0;
+}
+
+function renderTrackSelect(){
+  const corePct = trackOverallPct("core");
+  const projectPct = trackOverallPct("project");
+  const html = `
+    <div class="topbar">
+      <h1>🔐 IoT Study</h1>
+      <div class="badge-row">
+        <div class="sync-badge ${syncEnabled?'sync-on':'sync-off'}">${syncEnabled?'☁️ Synced':'📴 Local only'}</div>
+      </div>
+    </div>
+    <div class="intro-note">Two separate tracks: study general IoT engineering fundamentals (works for any IoT job), or work through the Compowder as a hands-on practical companion. They're independent — progress in one doesn't affect the other.</div>
+    <div class="track-card track-core" data-track="core">
+      <div class="track-arrow">›</div>
+      <h2>📡 Core IoT Curriculum</h2>
+      <p>${TRACKS.core.subtitle}</p>
+      <div class="track-meta">${corePct}% complete · 3 months · 12 weeks</div>
+    </div>
+    <div class="track-card track-project" data-track="project">
+      <div class="track-arrow">›</div>
+      <h2>✦ Compowder Project</h2>
+      <p>${TRACKS.project.subtitle}</p>
+      <div class="track-meta">${projectPct}% complete · 5 practical phases</div>
+    </div>
+  `;
+  root.innerHTML = html;
+  document.querySelectorAll(".track-card").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      currentTrack = el.dataset.track;
+      view = "overview";
+      render();
+      window.scrollTo(0,0);
+    });
+  });
+}
+
 function renderOverview(){
+  const t = TRACKS[currentTrack];
   let html = `
     <div class="topbar">
-      <h1>🔐 IoT Security Study</h1>
+      <button class="back-btn" id="trackBackBtn">‹ Tracks</button>
       <div class="badge-row">
-        <div class="badge">3-Month Roadmap</div>
-        <div class="sync-badge ${syncEnabled?'sync-on':'sync-off'}">${syncEnabled?'☁️ Synced':'📴 Local only'}</div>
+        <div class="badge">${t.label}</div>
+        <div class="sync-badge ${syncEnabled?'sync-on':'sync-off'}">${syncEnabled?'☁️':'📴'}</div>
       </div>
     </div>
   `;
 
-  for(const m of [1,2,3]){
-    const meta = monthMeta(m);
-    const weeks = WEEKS.filter(w=>w.month===m);
+  for(const m of t.months){
+    const meta = t.monthMeta[m];
+    const weeks = t.weeks.filter(w=>w.month===m);
     let totalPct = 0;
-    weeks.forEach(w=>{ totalPct += weekStatus(m,w.week).pct; });
+    weeks.forEach(w=>{ totalPct += weekStatus(currentTrack,m,w.week).pct; });
     totalPct = Math.round(totalPct/weeks.length);
 
     html += `<div class="month-card ${meta.cls}">
@@ -659,9 +826,10 @@ function renderOverview(){
     </div>`;
 
     weeks.forEach(w=>{
-      const st = weekStatus(m, w.week);
+      const st = weekStatus(currentTrack, m, w.week);
+      const label = currentTrack==="project" ? "Phase "+w.week : "W"+w.week;
       html += `<div class="week-row" data-m="${m}" data-w="${w.week}">
-        <div class="week-num">W${w.week}</div>
+        <div class="week-num">${label}</div>
         <div class="week-info">
           <div class="wt">${w.title}</div>
           <div class="ws">${w.flashcards.length} cards · ${w.quiz.length} quiz Qs · ${w.interview.length} interview Qs</div>
@@ -673,6 +841,9 @@ function renderOverview(){
 
   root.innerHTML = html;
 
+  document.getElementById("trackBackBtn").addEventListener("click", ()=>{
+    view = "trackSelect"; render(); window.scrollTo(0,0);
+  });
   document.querySelectorAll(".week-row").forEach(el=>{
     el.addEventListener("click", ()=>{
       currentMonth = parseInt(el.dataset.m);
@@ -687,23 +858,25 @@ function renderOverview(){
 }
 
 function currentWeekData(){
-  return WEEKS.find(w=>w.month===currentMonth && w.week===currentWeek);
+  return TRACKS[currentTrack].weeks.find(w=>w.month===currentMonth && w.week===currentWeek);
 }
 
 function renderWeek(){
   const wk = currentWeekData();
-  const meta = monthMeta(currentMonth);
+  const t = TRACKS[currentTrack];
+  const meta = t.monthMeta[currentMonth];
+  const label = currentTrack==="project" ? "Phase "+wk.week : "Week "+wk.week;
 
   let html = `
     <div class="topbar">
-      <button class="back-btn" id="backBtn">‹ All weeks</button>
+      <button class="back-btn" id="backBtn">‹ ${t.label}</button>
       <div class="badge-row">
-        <div class="badge">${meta.name} · Week ${wk.week}</div>
+        <div class="badge">${label}</div>
         <div class="sync-badge ${syncEnabled?'sync-on':'sync-off'}">${syncEnabled?'☁️':'📴'}</div>
       </div>
     </div>
     <div class="week-header">
-      <div class="eyebrow">${meta.name}, Week ${wk.week}</div>
+      <div class="eyebrow">${meta.name} · ${label}</div>
       <h2>${wk.title}</h2>
       <p>${wk.summary}</p>
     </div>
@@ -735,7 +908,7 @@ function renderWeek(){
 
 /* ---------- Flashcards ---------- */
 function renderFlashcards(wk){
-  const p = getWeekProgress(currentMonth, currentWeek);
+  const p = getWeekProgress(currentTrack, currentMonth, currentWeek);
   const card = wk.flashcards[fcIndex];
   const knownCount = Object.values(p.known).filter(Boolean).length;
 
@@ -793,8 +966,7 @@ function goNextCard(wk){
 /* ---------- Quiz ---------- */
 function renderQuiz(wk){
   const el = document.getElementById("tabContent");
-  const p = getWeekProgress(currentMonth, currentWeek);
-
+  const p = getWeekProgress(currentTrack, currentMonth, currentWeek);
   if(quizFinished){
     const pct = Math.round((quizScore/wk.quiz.length)*100);
     el.innerHTML = `
@@ -813,7 +985,6 @@ function renderQuiz(wk){
     });
     return;
   }
-
   const q = wk.quiz[quizIndex];
   el.innerHTML = `
     <div class="quiz-progress">Question ${quizIndex+1} of ${wk.quiz.length}</div>
@@ -840,7 +1011,6 @@ function renderQuiz(wk){
     });
     optsEl.appendChild(b);
   });
-
   if(quizAnswered){
     document.getElementById("quizNext").addEventListener("click", ()=>{
       if(quizIndex < wk.quiz.length-1){
@@ -853,10 +1023,9 @@ function renderQuiz(wk){
     });
   }
 }
-
 /* ---------- Interview ---------- */
 function renderInterview(wk){
-  const p = getWeekProgress(currentMonth, currentWeek);
+  const p = getWeekProgress(currentTrack, currentMonth, currentWeek);
   const el = document.getElementById("tabContent");
   let html = `<div class="empty-hint">Tap a question to see talking points. Mark it once you can answer it out loud, unprompted.</div>`;
   wk.interview.forEach((item, i)=>{
